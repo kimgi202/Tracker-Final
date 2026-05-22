@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IRB 변경 이력 트래커 · PG-102-P2-01</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Apple SD Gothic Neo',sans-serif;
+  background:#f6f6f4;color:#1a1a1a;padding:20px;font-size:14px;line-height:1.6;min-height:100vh}
+.top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px}
+.title-wrap{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.title{font-size:17px;font-weight:700;letter-spacing:-.3px}
+.protocol-tag{font-size:12px;background:#1a1a1a;color:#fff;border-radius:6px;padding:2px 10px;cursor:pointer;white-space:nowrap}
+.protocol-tag:hover{background:#333}
+.title-sub{font-size:11px;color:#aaa;margin-top:2px}
+.stats{display:flex;gap:8px;flex-wrap:wrap}
+.stat{background:#fff;border:1px solid #ebebeb;border-radius:8px;padding:6px 14px;text-align:center;min-width:60px}
+.stat-n{font-size:18px;font-weight:700}
+.stat-l{font-size:10px;color:#aaa}
+.legend{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;font-size:11px;color:#888;align-items:center}
+.ldot{width:7px;height:7px;border-radius:2px;display:inline-block;margin-right:3px;vertical-align:middle}
+.vdot{width:9px;height:9px;border-radius:2px;display:inline-block;margin-right:3px;vertical-align:middle;border:1px solid}
+.lsep{width:1px;height:11px;background:#e0e0e0;margin:0 2px}
+.filter-bar{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
+.fsel{font-size:12px;padding:5px 9px;border:1px solid #e0e0e0;border-radius:7px;background:#fff;color:#1a1a1a;outline:none;cursor:pointer}
+.fsel:focus{border-color:#888}
+.fsearch{font-size:12px;padding:5px 9px;border:1px solid #e0e0e0;border-radius:7px;background:#fff;color:#1a1a1a;outline:none;flex:1;min-width:120px;max-width:220px}
+.fsearch:focus{border-color:#888}
+.fcnt{font-size:11px;color:#aaa;white-space:nowrap}
+.empty{text-align:center;padding:40px;color:#ccc;font-size:13px;border:1px dashed #e0e0e0;border-radius:10px;background:#fff;margin-bottom:10px}
+.card{background:#fff;border:1px solid #ebebeb;border-left:4px solid #ccc;border-radius:0 10px 10px 0;margin-bottom:8px;overflow:hidden}
+.card-head{display:flex;align-items:center;gap:8px;padding:10px 13px;cursor:pointer;user-select:none}
+.card-head:hover{background:#fafaf8}
+.card-head.open{background:#f5f5f2}
+.num{font-size:11px;color:#ccc;font-weight:700;min-width:18px;flex-shrink:0}
+.badge{border-radius:5px;padding:1px 8px;font-size:11px;font-weight:600;white-space:nowrap;border:1px solid transparent;flex-shrink:0}
+.result-badge{border-radius:4px;padding:1px 7px;font-size:11px;font-weight:600;white-space:nowrap;flex-shrink:0}
+.site-tag{font-size:11px;background:#f0f0ec;color:#888;border-radius:5px;padding:1px 7px;white-space:nowrap;flex-shrink:0;max-width:130px;overflow:hidden;text-overflow:ellipsis}
+.meta{flex:1;display:flex;gap:8px;flex-wrap:wrap;align-items:center;min-width:0;overflow:hidden}
+.mi{font-size:11px;color:#999;white-space:nowrap}
+.mno{font-size:11px;font-weight:600;color:#333;white-space:nowrap}
+.dcnt{font-size:10px;background:#f0f0ec;color:#aaa;border-radius:8px;padding:1px 7px;white-space:nowrap;flex-shrink:0}
+.acts{display:flex;gap:3px;align-items:center;flex-shrink:0}
+.abtn{background:none;border:1px solid #e8e8e8;border-radius:5px;cursor:pointer;padding:2px 8px;font-size:11px;color:#888;transition:all .15s;white-space:nowrap}
+.abtn:hover{background:#f5f5f2;color:#333;border-color:#ccc}
+.abtn.red:hover{background:#fff5f5;color:#dc2626;border-color:#fca5a5}
+.chev{font-size:10px;color:#ccc;transition:transform .2s;flex-shrink:0}
+.chev.open{transform:rotate(180deg)}
+.card-body{display:none;padding:0 13px 12px;border-top:1px solid #f5f5f2}
+.card-body.open{display:block}
+.detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:6px;margin:10px 0 8px}
+.detail-item{display:flex;flex-direction:column;gap:2px}
+.detail-label{font-size:10px;color:#bbb;font-weight:600;letter-spacing:.3px;text-transform:uppercase}
+.detail-value{font-size:12px;color:#444}
+.resub-tag{display:inline-block;background:#fef3c7;color:#92400e;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:500;margin:2px 3px 0 0}
+.comment-box{margin:6px 0;padding:8px 10px;background:#fafaf8;border-radius:7px;border:1px solid #f0f0ec;font-size:12px;color:#555;line-height:1.6}
+.cml{font-size:10px;color:#bbb;font-weight:600;letter-spacing:.3px;text-transform:uppercase;margin-bottom:3px}
+.ver-hint{display:flex;gap:12px;padding:6px 0 4px;font-size:11px;color:#aaa}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{padding:5px 9px;text-align:left;font-weight:500;color:#bbb;font-size:11px;border-bottom:1px solid #f0f0ec;background:#fafaf9}
+td{padding:6px 9px;border-bottom:1px solid #f5f5f2;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#fafaf8}
+.pill{border-radius:4px;padding:1px 8px;font-size:11px;font-weight:600;display:inline-block}
+.no-doc{font-size:12px;color:#ddd;padding:8px 0}
+.add-main{width:100%;padding:10px;font-size:13px;color:#aaa;border:1px dashed #ddd;border-radius:10px;background:transparent;cursor:pointer;transition:all .15s;margin-top:4px;display:flex;align-items:center;justify-content:center;gap:6px}
+.add-main:hover{background:#fff;color:#555;border-color:#bbb}
+.dim{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100;display:none;align-items:center;justify-content:center;padding:20px}
+.dim.on{display:flex}
+.modal{background:#fff;border-radius:12px;width:100%;max-width:720px;max-height:94vh;overflow-y:auto;box-shadow:0 12px 48px rgba(0,0,0,.18)}
+.modal-hd{padding:18px 22px 12px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:1;border-bottom:1px solid #f0f0ec}
+.modal-hd h2{font-size:14px;font-weight:700}
+.close-btn{background:none;border:none;cursor:pointer;font-size:17px;color:#bbb;padding:2px 5px;border-radius:5px}
+.close-btn:hover{background:#f5f5f2;color:#555}
+.modal-body{padding:16px 22px 4px}
+.section-title{font-size:11px;font-weight:600;color:#aaa;letter-spacing:.5px;text-transform:uppercase;margin-bottom:10px;padding-bottom:5px;border-bottom:1px solid #f0f0ec}
+.sec{margin-bottom:16px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.row1{margin-bottom:10px}
+.fl{display:flex;flex-direction:column;gap:3px}
+.fl label{font-size:10px;color:#aaa;font-weight:600;letter-spacing:.3px;text-transform:uppercase}
+input[type=text],input[type=date],select,textarea{font-size:13px;padding:6px 9px;border:1px solid #e8e8e8;border-radius:7px;background:#fff;color:#1a1a1a;outline:none;width:100%;font-family:inherit;transition:border .15s}
+input:focus,select:focus,textarea:focus{border-color:#888}
+textarea{resize:vertical;min-height:56px;line-height:1.6;font-size:12px}
+.resub-row{display:flex;gap:6px;align-items:center;margin-bottom:5px}
+.resub-row input{flex:1}
+.del-resub{background:none;border:1px solid #f0e8e8;border-radius:5px;cursor:pointer;color:#ddd;font-size:13px;padding:3px 6px;transition:all .15s}
+.del-resub:hover{color:#dc2626;border-color:#fca5a5;background:#fff5f5}
+.add-resub{font-size:11px;color:#aaa;background:none;border:1px dashed #e8e8e8;border-radius:6px;padding:4px 10px;cursor:pointer;margin-top:2px;transition:all .15s}
+.add-resub:hover{background:#fafaf8;color:#888}
+.divider{height:1px;background:#f0f0ec;margin:14px 0}
+.doc-hd{font-size:10px;font-weight:600;color:#aaa;letter-spacing:.3px;text-transform:uppercase;margin-bottom:7px}
+.doc-row{display:grid;grid-template-columns:1fr 80px 80px 1fr 24px;gap:5px;align-items:center;margin-bottom:5px}
+.doc-row-hd{display:grid;grid-template-columns:1fr 80px 80px 1fr 24px;gap:5px;margin-bottom:4px;font-size:10px;color:#bbb;font-weight:600;padding:0 2px}
+.si{font-size:12px;padding:5px 7px;border:1px solid #e8e8e8;border-radius:6px;background:#fff;color:#1a1a1a;outline:none;width:100%;font-family:inherit}
+.si:focus{border-color:#888}
+.del-r{background:none;border:1px solid #f0e8e8;border-radius:5px;cursor:pointer;color:#ddd;font-size:13px;padding:3px 5px;transition:all .15s;line-height:1}
+.del-r:hover{color:#dc2626;border-color:#fca5a5;background:#fff5f5}
+.add-doc{width:100%;margin-top:4px;font-size:11px;color:#bbb;background:none;border:1px dashed #e8e8e8;border-radius:7px;padding:6px;cursor:pointer;transition:all .15s}
+.add-doc:hover{background:#fafaf8;color:#888}
+.modal-ft{padding:12px 22px 18px;border-top:1px solid #f0f0ec;display:flex;gap:8px;justify-content:flex-end;position:sticky;bottom:0;background:#fff}
+.btn{font-size:13px;font-weight:600;padding:7px 16px;border-radius:7px;cursor:pointer;transition:all .15s}
+.btn-c{border:1px solid #e8e8e8;background:#fff;color:#888}
+.btn-c:hover{background:#f5f5f2}
+.btn-s{border:1px solid #1a1a1a;background:#1a1a1a;color:#fff}
+.btn-s:hover{background:#333}
+.cdim{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:none;align-items:center;justify-content:center}
+.cdim.on{display:flex}
+.cbox{background:#fff;border-radius:10px;padding:22px 26px;text-align:center;min-width:260px}
+.cbox p{font-size:13px;color:#555;margin-bottom:3px}
+.cbox small{font-size:11px;color:#bbb}
+.cbox-acts{display:flex;gap:8px;justify-content:center;margin-top:16px}
+.btn-del{border:none;background:#dc2626;color:#fff;padding:7px 18px;border-radius:7px;cursor:pointer;font-size:13px;font-weight:600}
+.btn-del:hover{background:#b91c1c}
+.study-modal{background:#fff;border-radius:12px;width:100%;max-width:480px;padding:22px;box-shadow:0 12px 48px rgba(0,0,0,.18)}
+.study-modal h2{font-size:14px;font-weight:700;margin-bottom:14px}
+@media(max-width:600px){
+  .row3,.row2{grid-template-columns:1fr}
+  .doc-row,.doc-row-hd{grid-template-columns:1fr 60px 60px 1fr 22px}
+}
+</style>
+</head>
+<body>
+<div class="top">
+  <div>
+    <div class="title-wrap">
+      <div class="title">📋 IRB 변경 이력 트래커</div>
+      <span class="protocol-tag" onclick="openStudyModal()" id="protocol-tag">PG-102-P2-01 ✏️</span>
+    </div>
+    <div class="title-sub" id="study-sub">㈜프로젠 · 14개 기관 · Master &amp; Site 문서 버전 관리</div>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="stat-n" id="sc">0</div><div class="stat-l">총 제출</div></div>
+    <div class="stat"><div class="stat-n" id="dc">0</div><div class="stat-l">총 문서</div></div>
+    <div class="stat"><div class="stat-n" id="fc">0</div><div class="stat-l">필터</div></div>
+  </div>
+</div>
+<div class="legend">
+  <span><span class="ldot" style="background:#639922"></span>초기심의 승인</span>
+  <span><span class="ldot" style="background:#4da6ff"></span>초기심의 시정승인</span>
+  <span><span class="ldot" style="background:#378ADD"></span>변경승인</span>
+  <span><span class="ldot" style="background:#BA7517"></span>지속심사</span>
+  <span><span class="ldot" style="background:#E24B4A"></span>안전성보고</span>
+  <span><span class="ldot" style="background:#c026d3"></span>위반보고</span>
+  <span><span class="ldot" style="background:#888780"></span>종료보고</span>
+  <div class="lsep"></div>
+  <span style="color:#16a34a;font-weight:600;font-size:11px">● 승인</span>
+  <span style="color:#ca8a04;font-weight:600;font-size:11px">● 시정승인</span>
+  <span style="color:#2563eb;font-weight:600;font-size:11px">● 보완</span>
+  <span style="color:#dc2626;font-weight:600;font-size:11px">● 반려</span>
+  <div class="lsep"></div>
+  <span><span class="vdot" style="background:#dbeafe;border-color:#93c5fd"></span>Master</span>
+  <span><span class="vdot" style="background:#dcfce7;border-color:#86efac"></span>Site</span>
+</div>
+<div class="filter-bar">
+  <select class="fsel" id="fsite" onchange="applyFilter()">
+    <option value="">🏥 전체 기관</option>
+    <option value="01">01. 가톨릭대 서울성모</option>
+    <option value="02">02. 고려대 안암</option>
+    <option value="03">03. 분당서울대</option>
+    <option value="04">04. 가톨릭대 부천성모</option>
+    <option value="05">05. 경희대</option>
+    <option value="06">06. 고려대 안산</option>
+    <option value="07">07. 대전을지대</option>
+    <option value="08">08. 삼성서울</option>
+    <option value="09">09. 영남대</option>
+    <option value="10">10. 세브란스</option>
+    <option value="11">11. 노원을지대</option>
+    <option value="12">12. 강북삼성</option>
+    <option value="13">13. 가톨릭대 여의도성모</option>
+    <option value="14">14. 강동경희대</option>
+  </select>
+  <select class="fsel" id="ftype" onchange="applyFilter()">
+    <option value="">📋 전체 유형</option>
+    <option>초기심의 승인</option>
+    <option>초기심의 시정승인</option>
+    <option>변경승인</option>
+    <option>지속심사</option>
+    <option>안전성보고</option>
+    <option>위반보고</option>
+    <option>종료보고</option>
+  </select>
+  <select class="fsel" id="fresult" onchange="applyFilter()">
+    <option value="">✅ 전체 결과</option>
+    <option>승인</option>
+    <option>시정승인</option>
+    <option>보완</option>
+    <option>반려</option>
+    <option>검토완료</option>
+  </select>
+  <input class="fsearch" type="text" id="fsearch" placeholder="🔍 키워드 검색..." oninput="applyFilter()">
+  <span class="fcnt" id="fcnt"></span>
+</div>
+<div id="list"></div>
+<button class="add-main" onclick="openModal()"><span style="font-size:15px">＋</span> 새 제출 건 추가</button>
+
+<!-- 메인 모달 -->
+<div class="dim" id="dim">
+  <div class="modal">
+    <div class="modal-hd"><h2 id="mtitle">새 제출 건 추가</h2><button class="close-btn" onclick="closeModal()">✕</button></div>
+    <div class="modal-body">
+      <div class="sec">
+        <div class="section-title">기본 정보</div>
+        <div class="row2">
+          <div class="fl"><label>기관</label>
+            <select id="f-site">
+              <option value="">직접 입력 시 아래 사용</option>
+              <option value="01">01. 가톨릭대학교 서울성모병원</option>
+              <option value="02">02. 고려대학교 안암병원</option>
+              <option value="03">03. 분당서울대학교병원</option>
+              <option value="04">04. 가톨릭대학교 부천성모병원</option>
+              <option value="05">05. 경희대학교병원</option>
+              <option value="06">06. 고려대학교 안산병원</option>
+              <option value="07">07. 대전을지대학교병원</option>
+              <option value="08">08. 삼성서울병원</option>
+              <option value="09">09. 영남대학교병원</option>
+              <option value="10">10. 연세의료원 세브란스병원</option>
+              <option value="11">11. 노원을지대학교병원</option>
+              <option value="12">12. 강북삼성병원</option>
+              <option value="13">13. 가톨릭대학교 여의도성모병원</option>
+              <option value="14">14. 강동경희대학교병원</option>
+            </select>
+          </div>
+          <div class="fl"><label>기관명 직접입력 (신규 기관)</label><input type="text" id="f-site-custom" placeholder="신규 기관 시 직접 입력"></div>
+        </div>
+        <div class="row2">
+          <div class="fl"><label>변경 유형</label>
+            <select id="f-type">
+              <option>초기심의 승인</option><option>초기심의 시정승인</option>
+              <option>변경승인</option><option>지속심사</option>
+              <option>안전성보고</option><option>위반보고</option><option>종료보고</option>
+            </select>
+          </div>
+          <div class="fl"><label>심의 결과</label>
+            <select id="f-result">
+              <option value="">선택</option>
+              <option>승인</option><option>시정승인</option><option>보완</option>
+              <option>반려</option><option>검토완료</option><option>접수중</option><option>심의중</option>
+            </select>
+          </div>
+        </div>
+        <div class="row2">
+          <div class="fl"><label>승인번호 (IRB No.)</label><input type="text" id="f-no" placeholder="예: IRB 2024-06-001"></div>
+          <div class="fl"><label>유효기간</label><input type="text" id="f-vp" placeholder="예: 2024-09-03 ~ 2026-09-02"></div>
+        </div>
+      </div>
+      <div class="sec">
+        <div class="section-title">일자 기록</div>
+        <div class="row3">
+          <div class="fl"><label>CRA 제출일</label><input type="date" id="f-cra"></div>
+          <div class="fl"><label>PI 제출일</label><input type="date" id="f-pi"></div>
+          <div class="fl"><label>IRB 접수일</label><input type="date" id="f-receipt"></div>
+        </div>
+        <div class="row2">
+          <div class="fl"><label>심의일 (승인일)</label><input type="date" id="f-approval"></div>
+          <div class="fl"><label>통지일</label><input type="date" id="f-notify"></div>
+        </div>
+        <div class="fl" style="margin-bottom:4px">
+          <label>재제출 일자</label>
+          <div id="f-resub-wrap"></div>
+          <button class="add-resub" onclick="addResubRow()">＋ 재제출 일자 추가</button>
+        </div>
+      </div>
+      <div class="sec">
+        <div class="section-title">코멘트</div>
+        <textarea id="f-cmt" placeholder="변경 내용, 특이사항, 재제출 사유 등 자유 입력"></textarea>
+      </div>
+      <div class="divider"></div>
+      <div class="sec">
+        <div class="doc-hd">제출 문서</div>
+        <div class="doc-row-hd"><div>문서명</div><div>Master Ver</div><div>Site Ver</div><div>비고</div><div></div></div>
+        <div id="f-docs"></div>
+        <button class="add-doc" onclick="addDocRow()">＋ 문서 행 추가</button>
+      </div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn btn-c" onclick="closeModal()">취소</button>
+      <button class="btn btn-s" onclick="saveSub()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 삭제 확인 -->
+<div class="cdim" id="cdim">
+  <div class="cbox">
+    <p>이 제출 건을 삭제할까요?</p><small>되돌릴 수 없어요</small>
+    <div class="cbox-acts">
+      <button class="btn btn-c" onclick="document.getElementById('cdim').classList.remove('on')">취소</button>
+      <button class="btn-del" onclick="doDelete()">삭제</button>
+    </div>
+  </div>
+</div>
+
+<!-- 연구 정보 모달 -->
+<div class="cdim" id="study-dim">
+  <div class="study-modal">
+    <h2>📌 연구 정보 설정</h2>
+    <div class="row2" style="margin-bottom:10px">
+      <div class="fl"><label>Protocol No.</label><input type="text" id="s-protocol" placeholder="예: PG-102-P2-01"></div>
+      <div class="fl"><label>Sponsor</label><input type="text" id="s-sponsor" placeholder="예: ㈜프로젠"></div>
+    </div>
+    <div class="row2" style="margin-bottom:10px">
+      <div class="fl"><label>담당 CRA</label><input type="text" id="s-cra" placeholder="예: 김민지"></div>
+      <div class="fl"><label>총 기관 수</label><input type="text" id="s-sites" placeholder="예: 14개 기관"></div>
+    </div>
+    <div class="fl" style="margin-bottom:14px"><label>연구 제목</label><input type="text" id="s-title" placeholder="연구 제목 입력"></div>
+    <div class="cbox-acts">
+      <button class="btn btn-c" onclick="document.getElementById('study-dim').classList.remove('on')">취소</button>
+      <button class="btn btn-s" onclick="saveStudy()">저장</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const TC={
+  "초기심의 승인":{bg:"#f0fdf4",color:"#166534",b:"#639922"},
+  "초기심의 시정승인":{bg:"#eff6ff",color:"#1d4ed8",b:"#4da6ff"},
+  "변경승인":{bg:"#e8f2ff",color:"#1e40af",b:"#378ADD"},
+  "지속심사":{bg:"#fffbeb",color:"#92400e",b:"#BA7517"},
+  "안전성보고":{bg:"#fff5f5",color:"#991b1b",b:"#E24B4A"},
+  "위반보고":{bg:"#fdf4ff",color:"#7e22ce",b:"#c026d3"},
+  "종료보고":{bg:"#f9fafb",color:"#374151",b:"#888780"},
+};
+const RC={
+  "승인":{bg:"#dcfce7",color:"#166534"},
+  "시정승인":{bg:"#fef9c3",color:"#92400e"},
+  "보완":{bg:"#dbeafe",color:"#1e40af"},
+  "반려":{bg:"#fee2e2",color:"#991b1b"},
+  "검토완료":{bg:"#f3e8ff",color:"#7e22ce"},
+  "접수중":{bg:"#f0f0ec",color:"#666"},
+  "심의중":{bg:"#fff7ed",color:"#c2410c"},
+};
+const SITE_MAP={
+  "01":"01.서울성모","02":"02.고대안암","03":"03.분당서울대","04":"04.부천성모",
+  "05":"05.경희대","06":"06.고대안산","07":"07.대전을지","08":"08.삼성서울",
+  "09":"09.영남대","10":"10.세브란스","11":"11.노원을지","12":"12.강북삼성",
+  "13":"13.여의도성모","14":"14.강동경희대"
+};
+const SITE_NAMES={
+  "01":"가톨릭대학교 서울성모병원","02":"고려대학교 안암병원","03":"분당서울대학교병원",
+  "04":"가톨릭대학교 부천성모병원","05":"경희대학교병원","06":"고려대학교 안산병원",
+  "07":"대전을지대학교병원","08":"삼성서울병원","09":"영남대학교병원",
+  "10":"연세의료원 세브란스병원","11":"노원을지대학교병원","12":"강북삼성병원",
+  "13":"가톨릭대학교 여의도성모병원","14":"강동경희대학교병원"
+};
+const INIT=[{"id":"i1","site":"01","siteName":"가톨릭대학교 서울성모병원","type":"초기심의 승인","cmt":"[승인] 01. IND 승인서, 별첨류, 보험증권 등 제출","sd":"2024-08-21","ad":"2024-09-03","no":"KC24MDDS0577","vp":"2024-09-03 ~ 2026-09-02","docs":[{"n":"연구계획서 (PRT)","m":"1.2","r":"","sv":"1.2"},{"n":"동의서 (ICF)","m":"Main 1.2_2.0","r":"","sv":"Main 1.2_2.0"},{"n":"연구자 자료집 (IB)","m":"4.0","r":"","sv":"-"},{"n":"증례기록서 (CRF)","m":"1.0 (Paper CRF)","r":"","sv":"1.0 (Paper CRF)"}],"_open":false,"result":"승인","cra_date":"2024-08-21","pi_date":"","receipt":"","approval":"2024-09-03","notify":"","resub":[]},{"id":"i2","site":"01","siteName":"가톨릭대학교 서울성모병원","type":"변경승인","cmt":"[승인] 02. 대상자 수 20→12명, 기관 3→14개, PRT V2.1 변경, 연구비 변경","sd":"2024-10-17","ad":"2024-11-05","no":"KC24MDDS0577","vp":"2024-09-03 ~ 2026-09-02","docs":[{"n":"연구계획서 (PRT)","m":"2.1","r":"","sv":"2.1"},{"n":"동의서 (ICF)","m":"Main 2.0_1.0 인체유래물 2.0_1.0","r":"","sv":"Main 2.0_1.0 인체유래물 2.0_1.0"},{"n":"연구자 자료집 (IB)","m":"4.0","r":"","sv":"-"},{"n":"증례기록서 (CRF)","m":"1.0 (Blank eCRF)","r":"","sv":"1.0 (Blank eCRF)"}],"_open":false,"result":"승인","cra_date":"2024-10-17","pi_date":"","receipt":"","approval":"2024-11-05","notify":"","resub":[]},{"id":"i3","site":"01","siteName":"가톨릭대학교 서울성모병원","type":"변경승인","cmt":"[승인] 03. 연구비(약제 관리비 포함)","sd":"2024-10-17","ad":"2024-10-25","no":"KC24MDDS0577","vp":"2024-09-03 ~ 2026-09-02","docs":[],"_open":false,"result":"승인","cra_date":"2024-10-17","pi_date":"","receipt":"","approval":"2024-10-25","notify":"","resub":[]},{"id":"i4","site":"01","siteName":"가톨릭대학교 서울성모병원","type":"변경승인","cmt":"[승인] 04. CRA 추가(김민지, 윤정아 → 김민지, 윤정아, 박지선)","sd":"2024-11-21","ad":"2024-11-29","no":"KC24MDDS0577","vp":"2024-09-03 ~ 2026-09-02","docs":[],"_open":false,"result":"승인","cra_date":"2024-11-21","pi_date":"","receipt":"","approval":"2024-11-29","notify":"","resub":[]},{"id":"i5","site":"01","siteName":"가톨릭대학교 서울성모병원","type":"변경승인","cmt":"[승인] 05. 연구비(인건비 변경)","sd":"2025-01-10","ad":"2025-01-17","no":"KC24MDDS0577","vp":"2024-09-03 ~ 2026-09-02","docs":[],"_open":false,"result":"승인","cra_date":"2025-01-10","pi_date":"","receipt":"","approval":"2025-01-17","notify":"","resub":[]},{"id":"i6","site":"01","siteName":"가톨릭대학교 서울성모병원","type":"변경승인","cmt":"[승인] 06. PRT V2.2, eCRF V2.0, 별첨2 V3.0, 고대안산 시험자 변경","sd":"2025-03-21","ad":"2025-04-04","no":"KC24MDDS0577","vp":"2024-09-03 ~ 2026-09-02","docs":[{"n":"연구계획서 (PRT)","m":"2.2","r":"","sv":"2.2"},{"n":"동의서 (ICF)","m":"Main 2.1_1.0","r":"","sv":"Main 2.1_1.0"},{"n":"증례기록서 (CRF)","m":"V2.0 (Blank eCRF)","r":"","sv":"V2.0 (Blank eCRF)"}],"_open":false,"result":"승인","cra_date":"2025-03-21","pi_date":"","receipt":"","approval":"2025-04-04","notify":"","resub":[]},{"id":"i7","site":"01","siteName":"가톨릭대학교 서울성모병원","type":"지속심사","cmt":"[승인] 07. 등록 현황 보고","sd":"2025-07-04","ad":"2025-07-22","no":"KC24MDDS0577","vp":"2024-09-03 ~ 2026-09-02","docs":[],"_open":false,"result":"승인","cra_date":"2025-07-04","pi_date":"","receipt":"","approval":"2025-07-22","notify":"","resub":[]},{"id":"i8","site":"01","siteName":"가톨릭대학교 서울성모병원","type":"변경승인","cmt":"[승인] 08. 보험증권 변경, PRT V3.0 변경","sd":"2025-08-13","ad":"2025-09-03","no":"KC24MDDS0577","vp":"2024-09-03 ~ 2026-09-02","docs":[{"n":"연구계획서 (PRT)","m":"3","r":"","sv":"3"}],"_open":false,"result":"승인","cra_date":"2025-08-13","pi_date":"","receipt":"","approval":"2025-09-03","notify":"","resub":[]},{"id":"i9","site":"01","siteName":"가톨릭대학교 서울성모병원","type":"변경승인","cmt":"[승인] 09. 본원 모집 대상자수 12→8명","sd":"2025-09-05","ad":"2025-09-12","no":"KC24MDDS0577","vp":"2024-09-03 ~ 2026-09-02","docs":[],"_open":false,"result":"승인","cra_date":"2025-09-05","pi_date":"","receipt":"","approval":"2025-09-12","notify":"","resub":[]},{"id":"i10","site":"01","siteName":"가톨릭대학교 서울성모병원","type":"위반보고","cmt":"[승인] 10. 미준수 보고 1건(원외 광고 미승인 게시)","sd":"2025-09-16","ad":"2025-10-17","no":"KC24MDDS0577","vp":"2024-09-03 ~ 2026-09-02","docs":[],"_open":false,"result":"승인","cra_date":"2025-09-16","pi_date":"","receipt":"","approval":"2025-10-17","notify":"","resub":[]},{"id":"i11","site":"01","siteName":"가톨릭대학교 서울성모병원","type":"변경승인","cmt":"[승인] 11. 최신안전성정보보고(DSUR) V2.0, 타기관 SAE","sd":"2025-10-28","ad":"2025-11-07","no":"KC24MDDS0577","vp":"2024-09-03 ~ 2026-09-02","docs":[],"_open":false,"result":"승인","cra_date":"2025-10-28","pi_date":"","receipt":"","approval":"2025-11-07","notify":"","resub":[]},{"id":"i12","site":"01","siteName":"가톨릭대학교 서울성모병원","type":"변경승인","cmt":"[승인] 12. IB V4.0→V6.0 변경대비표","sd":"2025-10-28","ad":"2025-11-07","no":"KC24MDDS0577","vp":"2024-09-03 ~ 2026-09-02","docs":[{"n":"연구자 자료집 (IB)","m":"6.0","r":"","sv":"-"}],"_open":false,"result":"승인","cra_date":"2025-10-28","pi_date":"","receipt":"","approval":"2025-11-07","notify":"","resub":[]},{"id":"i13","site":"01","siteName":"가톨릭대학교 서울성모병원","type":"변경승인","cmt":"[승인] 13. 연구비 변경(최종 연구비 정산)","sd":"2025-11-27","ad":"2025-12-05","no":"KC24MDDS0577","vp":"2024-09-03 ~ 2026-09-02","docs":[],"_open":false,"result":"승인","cra_date":"2025-11-27","pi_date":"","receipt":"","approval":"2025-12-05","notify":"","resub":[]},{"id":"i14","site":"01","siteName":"가톨릭대학교 서울성모병원","type":"종료보고","cmt":"[승인] 14. 종료보고","sd":"2025-12-17","ad":"2026-01-08","no":"KC24MDDS0577","vp":"2024-09-03 ~ 2026-09-02","docs":[],"_open":false,"result":"승인","cra_date":"2025-12-17","pi_date":"","receipt":"","approval":"2026-01-08","notify":"","resub":[]},{"id":"i15","site":"01","siteName":"가톨릭대학교 서울성모병원","type":"변경승인","cmt":"[승인] 15. 연구비 변경(최종 연구비 정산)","sd":"2025-12-23","ad":"2026-01-02","no":"KC24MDDS0577","vp":"2024-09-03 ~ 2026-09-02","docs":[],"_open":false,"result":"승인","cra_date":"2025-12-23","pi_date":"","receipt":"","approval":"2026-01-02","notify":"","resub":[]},{"id":"i16","site":"02","siteName":"고려대학교 안암병원","type":"초기심의 시정승인","cmt":"[시정승인] 01. IND 승인서, 별첨류, 보험증권, Patient Card","sd":"2024-08-14","ad":"2024-09-02","no":"2024AN0449","vp":"2024-09-23 ~ 2025-09-22","docs":[{"n":"연구계획서 (PRT)","m":"1.2","r":"","sv":"1.2"},{"n":"동의서 (ICF)","m":"Main 1.2_1.0 인체유래물 1.0_1.0 임신정보 1.0_1.0","r":"","sv":"Main 1.2_1.0 인체유래물 1.0_1.0 임신정보 1.0_1.0"},{"n":"연구자 자료집 (IB)","m":"4.0","r":"","sv":"-"},{"n":"증례기록서 (CRF)","m":"1.0 (Paper CRF)","r":"","sv":"1.0 (Paper CRF)"}],"_open":false,"result":"승인","cra_date":"2024-08-14","pi_date":"","receipt":"","approval":"2024-09-02","notify":"","resub":[]},{"id":"i17","site":"02","siteName":"고려대학교 안암병원","type":"변경승인","cmt":"[승인] 02. ICF 변경대비표, Patient Card V1.1","sd":"2024-09-12","ad":"2024-09-23","no":"2024AN0449","vp":"2024-09-23 ~ 2025-09-22","docs":[{"n":"동의서 (ICF)","m":"Main 1.2_1.1","r":"","sv":"Main 1.2_1.1"}],"_open":false,"result":"승인","cra_date":"2024-09-12","pi_date":"","receipt":"","approval":"2024-09-23","notify":"","resub":[]},{"id":"i18","site":"02","siteName":"고려대학교 안암병원","type":"변경승인","cmt":"[시정승인] 03. 대상자 수 20→12명, PRT V2.1, 약제관리비 재산정","sd":"2024-10-25","ad":"2024-11-04","no":"2024AN0449","vp":"2024-09-23 ~ 2025-09-22","docs":[{"n":"연구계획서 (PRT)","m":"2.1","r":"","sv":"2.1"},{"n":"동의서 (ICF)","m":"Main 2.0_1.0 인체유래물/임신정보 2.0_1.0","r":"","sv":"Main 2.0_1.0 인체유래물/임신정보 2.0_1.0"},{"n":"증례기록서 (CRF)","m":"1.0 (Blank eCRF)","r":"","sv":"1.0 (Blank eCRF)"}],"_open":false,"result":"승인","cra_date":"2024-10-25","pi_date":"","receipt":"","approval":"2024-11-04","notify":"","resub":[]},{"id":"i19","site":"02","siteName":"고려대학교 안암병원","type":"변경승인","cmt":"[승인] 04. ICF, 임신정보 변경대비표, 모집공고 변경","sd":"2024-11-15","ad":"2024-11-18","no":"2024AN0449","vp":"2024-09-23 ~ 2025-09-22","docs":[{"n":"동의서 (ICF)","m":"Main 2.0_1.1 임신정보 2.0_1.1","r":"","sv":"Main 2.0_1.1 임신정보 2.0_1.1"}],"_open":false,"result":"승인","cra_date":"2024-11-15","pi_date":"","receipt":"","approval":"2024-11-18","notify":"","resub":[]},{"id":"i20","site":"02","siteName":"고려대학교 안암병원","type":"변경승인","cmt":"[승인] 05. 연구진 추가(CRC 변경, Lab technician 추가)","sd":"2024-12-13","ad":"2024-12-26","no":"2024AN0449","vp":"2024-09-23 ~ 2025-09-22","docs":[{"n":"동의서 (ICF)","m":"Main 2.0_1.1","r":"","sv":"Main 2.0_1.1"}],"_open":false,"result":"승인","cra_date":"2024-12-13","pi_date":"","receipt":"","approval":"2024-12-26","notify":"","resub":[]},{"id":"i21","site":"02","siteName":"고려대학교 안암병원","type":"위반보고","cmt":"[승인] 06. Major PD 1건(02S-004: V1 미공복)","sd":"2025-01-02","ad":"2025-01-16","no":"2024AN0449","vp":"2024-09-23 ~ 2025-09-22","docs":[],"_open":false,"result":"승인","cra_date":"2025-01-02","pi_date":"","receipt":"","approval":"2025-01-16","notify":"","resub":[]},{"id":"i22","site":"02","siteName":"고려대학교 안암병원","type":"변경승인","cmt":"[승인] 07. 연구진 변경(CRC, 관리약사)","sd":"2025-01-16","ad":"2025-02-07","no":"2024AN0449","vp":"2024-09-23 ~ 2025-09-22","docs":[],"_open":false,"result":"승인","cra_date":"2025-01-16","pi_date":"","receipt":"","approval":"2025-02-07","notify":"","resub":[]},{"id":"i23","site":"02","siteName":"고려대학교 안암병원","type":"변경승인","cmt":"[승인] 08. 연구비 변경, 연구진 변경(공동연구자)","sd":"2025-02-18","ad":"2025-03-04","no":"2024AN0449","vp":"2024-09-23 ~ 2025-09-22","docs":[],"_open":false,"result":"승인","cra_date":"2025-02-18","pi_date":"","receipt":"","approval":"2025-03-04","notify":"","resub":[]},{"id":"i24","site":"02","siteName":"고려대학교 안암병원","type":"변경승인","cmt":"[승인] 09. PRT V2.2, eCRF V2.0, 대상자 수 12→19명","sd":"2025-03-24","ad":"2025-03-27","no":"2024AN0449","vp":"2024-09-23 ~ 2025-09-22","docs":[{"n":"연구계획서 (PRT)","m":"2.2","r":"","sv":"2.2"},{"n":"동의서 (ICF)","m":"Main 2.1_1.0","r":"","sv":"Main 2.1_1.0"},{"n":"증례기록서 (CRF)","m":"V2.0 (Blank eCRF)","r":"","sv":"V2.0 (Blank eCRF)"}],"_open":false,"result":"승인","cra_date":"2025-03-24","pi_date":"","receipt":"","approval":"2025-03-27","notify":"","resub":[]},{"id":"i25","site":"02","siteName":"고려대학교 안암병원","type":"변경승인","cmt":"[시정승인] 10. 보험증권 변경, 첨부 탭 버전 오기 정정","sd":"2025-04-14","ad":"2025-04-24","no":"2024AN0449","vp":"2024-09-23 ~ 2025-09-22","docs":[],"_open":false,"result":"승인","cra_date":"2025-04-14","pi_date":"","receipt":"","approval":"2025-04-24","notify":"","resub":[]},{"id":"i26","site":"02","siteName":"고려대학교 안암병원","type":"변경승인","cmt":"[승인] 11. 보완 답변서(마지막 대상자 방문 시기)","sd":"2025-05-14","ad":"2025-05-29","no":"2024AN0449","vp":"2024-09-23 ~ 2025-09-22","docs":[],"_open":false,"result":"승인","cra_date":"2025-05-14","pi_date":"","receipt":"","approval":"2025-05-29","notify":"","resub":[]},{"id":"i27","site":"02","siteName":"고려대학교 안암병원","type":"위반보고","cmt":"[승인] 12. Major PD 1건(02S-008 제외기준13 위반)","sd":"2025-06-18","ad":"2025-07-07","no":"2024AN0449","vp":"2024-09-23 ~ 2025-09-22","docs":[],"_open":false,"result":"승인","cra_date":"2025-06-18","pi_date":"","receipt":"","approval":"2025-07-07","notify":"","resub":[]},{"id":"i28","site":"02","siteName":"고려대학교 안암병원","type":"변경승인","cmt":"[승인] 13. 관리약사 변경","sd":"2025-06-19","ad":"2025-07-05","no":"2024AN0449","vp":"2024-09-23 ~ 2025-09-22","docs":[],"_open":false,"result":"승인","cra_date":"2025-06-19","pi_date":"","receipt":"","approval":"2025-07-05","notify":"","resub":[]},{"id":"i29","site":"02","siteName":"고려대학교 안암병원","type":"변경승인","cmt":"[승인] 14. 대상자 수 19→20명, 관리약사 변경, PRT V3.0","sd":"2025-08-12","ad":"2025-08-18","no":"2024AN0449","vp":"2024-09-23 ~ 2025-09-22","docs":[{"n":"연구계획서 (PRT)","m":"3","r":"","sv":"3"}],"_open":false,"result":"승인","cra_date":"2025-08-12","pi_date":"","receipt":"","approval":"2025-08-18","notify":"","resub":[]},{"id":"i30","site":"02","siteName":"고려대학교 안암병원","type":"종료보고","cmt":"[시정승인] 15. 종료보고","sd":"2025-08-19","ad":"2025-08-28","no":"2024AN0449","vp":"2024-09-23 ~ 2025-09-22","docs":[],"_open":false,"result":"승인","cra_date":"2025-08-19","pi_date":"","receipt":"","approval":"2025-08-28","notify":"","resub":[]},{"id":"i31","site":"02","siteName":"고려대학교 안암병원","type":"위반보고","cmt":"[승인] 16. 위반보고(Minor PD 12건), 미준수 보고(위반보고 지연)","sd":"2025-08-19","ad":"2025-09-05","no":"2024AN0449","vp":"2024-09-23 ~ 2025-09-22","docs":[],"_open":false,"result":"승인","cra_date":"2025-08-19","pi_date":"","receipt":"","approval":"2025-09-05","notify":"","resub":[]},{"id":"i32","site":"02","siteName":"고려대학교 안암병원","type":"변경승인","cmt":"[승인] 17. 종료보고 보완답변(동의서 취득 수 정정)","sd":"2025-09-04","ad":"2025-09-11","no":"2024AN0449","vp":"2024-09-23 ~ 2025-09-22","docs":[],"_open":false,"result":"승인","cra_date":"2025-09-04","pi_date":"","receipt":"","approval":"2025-09-11","notify":"","resub":[]},{"id":"i33","site":"02","siteName":"고려대학교 안암병원","type":"안전성보고","cmt":"[승인] 18. 최신안전성정보보고(DSUR) V2.0","sd":"2025-10-14","ad":"2025-10-17","no":"2024AN0449","vp":"2024-09-23 ~ 2025-09-22","docs":[],"_open":false,"result":"승인","cra_date":"2025-10-14","pi_date":"","receipt":"","approval":"2025-10-17","notify":"","resub":[]},{"id":"i34","site":"02","siteName":"고려대학교 안암병원","type":"변경승인","cmt":"[승인] 19. 연구비 변경(최종 연구비 정산), IB V6.0","sd":"2025-10-30","ad":"2025-11-06","no":"2024AN0449","vp":"2024-09-23 ~ 2025-09-22","docs":[{"n":"연구자 자료집 (IB)","m":"6.0","r":"","sv":"-"}],"_open":false,"result":"승인","cra_date":"2025-10-30","pi_date":"","receipt":"","approval":"2025-11-06","notify":"","resub":[]},{"id":"i35","site":"03","siteName":"분당서울대학교병원","type":"초기심의 시정승인","cmt":"[시정승인] 01. IND 승인서, 별첨류, 보험증권, 책임연구자 이력서","sd":"2024-08-13","ad":"2024-09-11","no":"B-2409-924-001","vp":"2024-10-02 ~ 2026-10-01","docs":[{"n":"연구계획서 (PRT)","m":"1.2","r":"","sv":"1.2"},{"n":"동의서 (ICF)","m":"Main 1.2_1.0 인체유래물 1.0_1.0 임신정보 1.0_1.0","r":"","sv":"Main 1.2_1.0 인체유래물 1.0_1.0 임신정보 1.0_1.0"},{"n":"연구자 자료집 (IB)","m":"4.0","r":"","sv":"-"},{"n":"증례기록서 (CRF)","m":"1.0 (Paper CRF)","r":"","sv":"1.0 (Paper CRF)"}],"_open":false,"result":"승인","cra_date":"2024-08-13","pi_date":"","receipt":"","approval":"2024-09-11","notify":"","resub":[]},{"id":"i36","site":"03","siteName":"분당서울대학교병원","type":"변경승인","cmt":"[승인] 02. PRT V1.3 변경대비표, ICF 변경대비표","sd":"2024-09-24","ad":"2024-10-01","no":"B-2409-924-001","vp":"2024-10-02 ~ 2026-10-01","docs":[{"n":"연구계획서 (PRT)","m":"1.3","r":"","sv":"1.3"},{"n":"동의서 (ICF)","m":"Main 1.2_1.1 인체유래물 삭제","r":"","sv":"Main 1.2_1.1 인체유래물 삭제"}],"_open":false,"result":"승인","cra_date":"2024-09-24","pi_date":"","receipt":"","approval":"2024-10-01","notify":"","resub":[]},{"id":"i37","site":"03","siteName":"분당서울대학교병원","type":"변경승인","cmt":"[시정승인] 03. 대상자 수 변경, PRT V2.1, 연구비 변경대비표","sd":"2024-10-25","ad":"2024-11-13","no":"B-2409-924-001","vp":"2024-10-02 ~ 2026-10-01","docs":[{"n":"연구계획서 (PRT)","m":"2.1","r":"","sv":"2.1"},{"n":"동의서 (ICF)","m":"Main 2.0_1.0 인체유래물/임신정보 2.0_1.0","r":"","sv":"Main 2.0_1.0 인체유래물/임신정보 2.0_1.0"},{"n":"증례기록서 (CRF)","m":"1.0 (Blank eCRF)","r":"","sv":"1.0 (Blank eCRF)"}],"_open":false,"result":"승인","cra_date":"2024-10-25","pi_date":"","receipt":"","approval":"2024-11-13","notify":"","resub":[]},{"id":"i38","site":"03","siteName":"분당서울대학교병원","type":"변경승인","cmt":"[승인] 04. ICF 변경대비표 V2.0_1.0→V2.0_1.1","sd":"2024-11-22","ad":"2024-12-02","no":"B-2409-924-001","vp":"2024-10-02 ~ 2026-10-01","docs":[{"n":"동의서 (ICF)","m":"Main 2.0_1.1","r":"","sv":"Main 2.0_1.1"}],"_open":false,"result":"승인","cra_date":"2024-11-22","pi_date":"","receipt":"","approval":"2024-12-02","notify":"","resub":[]},{"id":"i39","site":"03","siteName":"분당서울대학교병원","type":"변경승인","cmt":"[승인] 05. CRC 변경(오혜란→노한솔), CGM 설명문 V2.1","sd":"2024-12-02","ad":"2024-12-10","no":"B-2409-924-001","vp":"2024-10-02 ~ 2026-10-01","docs":[{"n":"동의서 (ICF)","m":"Main 2.0_1.2 임신정보 2.0_1.1","r":"","sv":"Main 2.0_1.2 임신정보 2.0_1.1"}],"_open":false,"result":"승인","cra_date":"2024-12-02","pi_date":"","receipt":"","approval":"2024-12-10","notify":"","resub":[]},{"id":"i40","site":"03","siteName":"분당서울대학교병원","type":"변경승인","cmt":"[승인] 06. 연구비 변경대비표","sd":"2025-02-11","ad":"2025-02-13","no":"B-2409-924-001","vp":"2024-10-02 ~ 2026-10-01","docs":[],"_open":false,"result":"승인","cra_date":"2025-02-11","pi_date":"","receipt":"","approval":"2025-02-13","notify":"","resub":[]},{"id":"i41","site":"03","siteName":"분당서울대학교병원","type":"변경승인","cmt":"[승인] 07. PRT V2.2, eCRF V2.0, 별첨2 V3.0, Sub-I 추가, CRC 변경","sd":"2025-03-18","ad":"2025-03-31","no":"B-2409-924-001","vp":"2024-10-02 ~ 2026-10-01","docs":[{"n":"연구계획서 (PRT)","m":"2.2","r":"","sv":"2.2"},{"n":"동의서 (ICF)","m":"Main 2.1_1.0","r":"","sv":"Main 2.1_1.0"},{"n":"증례기록서 (CRF)","m":"2.0 (Blank eCRF)","r":"","sv":"2.0 (Blank eCRF)"}],"_open":false,"result":"승인","cra_date":"2025-03-18","pi_date":"","receipt":"","approval":"2025-03-31","notify":"","resub":[]},{"id":"i42","site":"03","siteName":"분당서울대학교병원","type":"변경승인","cmt":"[승인] 08. 대상자 수 12→18명, 연구비, 보험증권 변경","sd":"2025-06-13","ad":"2025-06-23","no":"B-2409-924-001","vp":"2024-10-02 ~ 2026-10-01","docs":[],"_open":false,"result":"승인","cra_date":"2025-06-13","pi_date":"","receipt":"","approval":"2025-06-23","notify":"","resub":[]},{"id":"i43","site":"03","siteName":"분당서울대학교병원","type":"변경승인","cmt":"[승인] 09. PRT V3.0 변경, 별첨2 오기수정","sd":"2025-08-06","ad":"2025-08-14","no":"B-2409-924-001","vp":"2024-10-02 ~ 2026-10-01","docs":[{"n":"연구계획서 (PRT)","m":"3","r":"","sv":"3"}],"_open":false,"result":"승인","cra_date":"2025-08-06","pi_date":"","receipt":"","approval":"2025-08-14","notify":"","resub":[]},{"id":"i44","site":"03","siteName":"분당서울대학교병원","type":"지속심사","cmt":"[승인] 10. 지속심의: 최근 승인 PRT V3.0, ICF, 동의서류 제출","sd":"2025-08-19","ad":"2025-09-29","no":"B-2409-924-001","vp":"2024-10-02 ~ 2026-10-01","docs":[],"_open":false,"result":"승인","cra_date":"2025-08-19","pi_date":"","receipt":"","approval":"2025-09-29","notify":"","resub":[]},{"id":"i45","site":"03","siteName":"분당서울대학교병원","type":"위반보고","cmt":"[검토완료] 11. 위반보고(Minor PD 5건)","sd":"2025-08-19","ad":"2025-08-22","no":"B-2409-924-001","vp":"2024-10-02 ~ 2026-10-01","docs":[],"_open":false,"result":"승인","cra_date":"2025-08-19","pi_date":"","receipt":"","approval":"2025-08-22","notify":"","resub":[]},{"id":"i46","site":"03","siteName":"분당서울대학교병원","type":"변경승인","cmt":"[승인] 12. IB V4.0→V6.0, Sub-I 알림해제","sd":"2025-10-16","ad":"2025-10-17","no":"B-2409-924-001","vp":"2024-10-02 ~ 2026-10-01","docs":[{"n":"연구자 자료집 (IB)","m":"6.0","r":"","sv":"-"}],"_open":false,"result":"승인","cra_date":"2025-10-16","pi_date":"","receipt":"","approval":"2025-10-17","notify":"","resub":[]},{"id":"i47","site":"03","siteName":"분당서울대학교병원","type":"위반보고","cmt":"[검토완료] 13. 승인 만료전 지속심의 승인통지 미확보 건","sd":"2025-10-16","ad":"2025-10-17","no":"B-2409-924-001","vp":"2024-10-02 ~ 2026-10-01","docs":[],"_open":false,"result":"승인","cra_date":"2025-10-16","pi_date":"","receipt":"","approval":"2025-10-17","notify":"","resub":[]},{"id":"i48","site":"03","siteName":"분당서울대학교병원","type":"안전성보고","cmt":"[검토완료] 14. 최신안전성정보보고(DSUR) V2.0","sd":"2025-10-16","ad":"2025-10-17","no":"B-2409-924-001","vp":"2024-10-02 ~ 2026-10-01","docs":[],"_open":false,"result":"승인","cra_date":"2025-10-16","pi_date":"","receipt":"","approval":"2025-10-17","notify":"","resub":[]},{"id":"i49","site":"03","siteName":"분당서울대학교병원","type":"변경승인","cmt":"[승인] 15. 연구비 변경(최종 연구비 정산)","sd":"2025-11-11","ad":"2025-11-12","no":"B-2409-924-001","vp":"2024-10-02 ~ 2026-10-01","docs":[],"_open":false,"result":"승인","cra_date":"2025-11-11","pi_date":"","receipt":"","approval":"2025-11-12","notify":"","resub":[]},{"id":"i50","site":"03","siteName":"분당서울대학교병원","type":"변경승인","cmt":"[승인] 16. CRA 변경(이수현→이현아)","sd":"2026-02-27","ad":"2026-03-11","no":"B-2409-924-001","vp":"2024-10-02 ~ 2026-10-01","docs":[],"_open":false,"result":"승인","cra_date":"2026-02-27","pi_date":"","receipt":"","approval":"2026-03-11","notify":"","resub":[]},{"id":"i51","site":"04","siteName":"가톨릭대학교 부천성모병원","type":"초기심의 승인","cmt":"[보완] 01. IND 승인서, 별첨류, 보험증권, 참고문헌","sd":"2024-09-10","ad":"2024-10-11","no":"HC24MDDS0074","vp":"2024-11-08 ~ 2025-11-07","docs":[{"n":"연구계획서 (PRT)","m":"1.2","r":"","sv":"1.2"},{"n":"동의서 (ICF)","m":"Main 1.2_2.1 인체유래물 1.0_1.0 임신정보 1.0_1.1","r":"","sv":"Main 1.2_2.1 인체유래물 1.0_1.0 임신정보 1.0_1.1"},{"n":"연구자 자료집 (IB)","m":"4.0","r":"","sv":"-"},{"n":"증례기록서 (CRF)","m":"1.0 (Paper CRF)","r":"","sv":"1.0 (Paper CRF)"}],"_open":false,"result":"승인","cra_date":"2024-09-10","pi_date":"","receipt":"","approval":"2024-10-11","notify":"","resub":[]},{"id":"i52","site":"04","siteName":"가톨릭대학교 부천성모병원","type":"변경승인","cmt":"[승인] 02. ICF V2.2 변경대비표, 취약피험자 보호대책 V1.0, 고혈당 조치기준","sd":"2024-10-24","ad":"2024-11-08","no":"HC24MDDS0074","vp":"2024-11-08 ~ 2025-11-07","docs":[{"n":"동의서 (ICF)","m":"Main 1.2_2.2","r":"","sv":"Main 1.2_2.2"}],"_open":false,"result":"승인","cra_date":"2024-10-24","pi_date":"","receipt":"","approval":"2024-11-08","notify":"","resub":[]},{"id":"i53","site":"04","siteName":"가톨릭대학교 부천성모병원","type":"변경승인","cmt":"[시정승인] 03. 대상자 수 변경, PRT V2.1, 기관 변경, 검체분석기관 지정서","sd":"2024-11-21","ad":"2024-12-10","no":"HC24MDDS0074","vp":"2024-11-08 ~ 2025-11-07","docs":[{"n":"연구계획서 (PRT)","m":"2.1","r":"","sv":"2.1"},{"n":"동의서 (ICF)","m":"Main 2.0_1.0 인체유래물/임신정보 2.0_1.0","r":"","sv":"Main 2.0_1.0 인체유래물/임신정보 2.0_1.0"},{"n":"증례기록서 (CRF)","m":"2.0 (Paper CRF) / 1.0 (Blank e","r":"","sv":"2.0 (Paper CRF) / 1.0 (Blank e"}],"_open":false,"result":"승인","cra_date":"2024-11-21","pi_date":"","receipt":"","approval":"2024-12-10","notify":"","resub":[]},{"id":"i54","site":"04","siteName":"가톨릭대학교 부천성모병원","type":"변경승인","cmt":"[승인] 04. 시정승인 답변서","sd":"2024-12-19","ad":"2024-12-24","no":"HC24MDDS0074","vp":"2024-11-08 ~ 2025-11-07","docs":[],"_open":false,"result":"승인","cra_date":"2024-12-19","pi_date":"","receipt":"","approval":"2024-12-24","notify":"","resub":[]},{"id":"i55","site":"04","siteName":"가톨릭대학교 부천성모병원","type":"변경승인","cmt":"[승인] 05. 연구진 변경(강상화 업무 축소, 김행연 추가)","sd":"2025-02-04","ad":"2025-02-11","no":"HC24MDDS0074","vp":"2024-11-08 ~ 2025-11-07","docs":[],"_open":false,"result":"승인","cra_date":"2025-02-04","pi_date":"","receipt":"","approval":"2025-02-11","notify":"","resub":[]},{"id":"i56","site":"04","siteName":"가톨릭대학교 부천성모병원","type":"변경승인","cmt":"[시정승인] 06. PRT V2.2, eCRF V2.0, 별첨2 V3.0, 고대안산 시험자 변경","sd":"2025-03-19","ad":"2025-04-11","no":"HC24MDDS0074","vp":"2024-11-08 ~ 2025-11-07","docs":[{"n":"연구계획서 (PRT)","m":"2.2","r":"","sv":"2.2"},{"n":"동의서 (ICF)","m":"Main 2.1_1.0","r":"","sv":"Main 2.1_1.0"},{"n":"증례기록서 (CRF)","m":"2.0 (Blank eCRF)","r":"","sv":"2.0 (Blank eCRF)"}],"_open":false,"result":"승인","cra_date":"2025-03-19","pi_date":"","receipt":"","approval":"2025-04-11","notify":"","resub":[]},{"id":"i57","site":"04","siteName":"가톨릭대학교 부천성모병원","type":"변경승인","cmt":"[승인] 07. 연구비(인건비 변경, 약제 관리비 포함)","sd":"2025-03-25","ad":"2025-04-08","no":"HC24MDDS0074","vp":"2024-11-08 ~ 2025-11-07","docs":[],"_open":false,"result":"승인","cra_date":"2025-03-25","pi_date":"","receipt":"","approval":"2025-04-08","notify":"","resub":[]},{"id":"i58","site":"04","siteName":"가톨릭대학교 부천성모병원","type":"위반보고","cmt":"[반려] 08. 04S-005 Visit Window -1D 위반보고 (반려 후 UP 보고로 진행)","sd":"2025-04-03","ad":"","no":"HC24MDDS0074","vp":"2024-11-08 ~ 2025-11-07","docs":[],"_open":false,"result":"승인","cra_date":"2025-04-03","pi_date":"","receipt":"","approval":"","notify":"","resub":[]},{"id":"i59","site":"04","siteName":"가톨릭대학교 부천성모병원","type":"위반보고","cmt":"[승인] 09. UP 보고서(Minor PD 1건, 04S-005 Visit window 위반)","sd":"2025-04-04","ad":"2025-04-15","no":"HC24MDDS0074","vp":"2024-11-08 ~ 2025-11-07","docs":[],"_open":false,"result":"승인","cra_date":"2025-04-04","pi_date":"","receipt":"","approval":"2025-04-15","notify":"","resub":[]},{"id":"i60","site":"04","siteName":"가톨릭대학교 부천성모병원","type":"변경승인","cmt":"[승인] 10. PRT V2.2 제출 건에 대한 시정후 승인 답변서","sd":"2025-04-23","ad":"2025-04-30","no":"HC24MDDS0074","vp":"2024-11-08 ~ 2025-11-07","docs":[],"_open":false,"result":"승인","cra_date":"2025-04-23","pi_date":"","receipt":"","approval":"2025-04-30","notify":"","resub":[]},{"id":"i61","site":"04","siteName":"가톨릭대학교 부천성모병원","type":"변경승인","cmt":"[승인] 11. CRA 변경(이현경→이수현)","sd":"2025-05-13","ad":"2025-05-20","no":"HC24MDDS0074","vp":"2024-11-08 ~ 2025-11-07","docs":[],"_open":false,"result":"승인","cra_date":"2025-05-13","pi_date":"","receipt":"","approval":"2025-05-20","notify":"","resub":[]},{"id":"i62","site":"04","siteName":"가톨릭대학교 부천성모병원","type":"변경승인","cmt":"[승인] 12. 대상자 수 12→4명, PRT V3.0, 보험증권 변경","sd":"2025-08-07","ad":"2025-09-12","no":"HC24MDDS0074","vp":"2024-11-08 ~ 2025-11-07","docs":[{"n":"연구계획서 (PRT)","m":"3","r":"","sv":"3"}],"_open":false,"result":"승인","cra_date":"2025-08-07","pi_date":"","receipt":"","approval":"2025-09-12","notify":"","resub":[]},{"id":"i63","site":"04","siteName":"가톨릭대학교 부천성모병원","type":"변경승인","cmt":"[승인] 13. 연구비 변경(최종 연구비 정산)","sd":"2025-09-18","ad":"2025-09-30","no":"HC24MDDS0074","vp":"2024-11-08 ~ 2025-11-07","docs":[],"_open":false,"result":"승인","cra_date":"2025-09-18","pi_date":"","receipt":"","approval":"2025-09-30","notify":"","resub":[]},{"id":"i64","site":"04","siteName":"가톨릭대학교 부천성모병원","type":"변경승인","cmt":"[승인] 14. IB V4.0→V6.0","sd":"2025-10-16","ad":"2025-10-28","no":"HC24MDDS0074","vp":"2024-11-08 ~ 2025-11-07","docs":[{"n":"연구자 자료집 (IB)","m":"6.0","r":"","sv":"-"}],"_open":false,"result":"승인","cra_date":"2025-10-16","pi_date":"","receipt":"","approval":"2025-10-28","notify":"","resub":[]},{"id":"i65","site":"04","siteName":"가톨릭대학교 부천성모병원","type":"안전성보고","cmt":"[승인] 15. 최신안전성정보보고(DSUR) V2.0, 타기관 SAE","sd":"2025-10-16","ad":"2025-10-28","no":"HC24MDDS0074","vp":"2024-11-08 ~ 2025-11-07","docs":[],"_open":false,"result":"승인","cra_date":"2025-10-16","pi_date":"","receipt":"","approval":"2025-10-28","notify":"","resub":[]},{"id":"i66","site":"04","siteName":"가톨릭대학교 부천성모병원","type":"종료보고","cmt":"[승인] 16. 종료보고","sd":"2025-10-16","ad":"2025-11-07","no":"HC24MDDS0074","vp":"2024-11-08 ~ 2025-11-07","docs":[],"_open":false,"result":"승인","cra_date":"2025-10-16","pi_date":"","receipt":"","approval":"2025-11-07","notify":"","resub":[]},{"id":"i67","site":"04","siteName":"가톨릭대학교 부천성모병원","type":"변경승인","cmt":"[승인] 17. CRA 변경(이수현→이현아)","sd":"2026-03-05","ad":"2026-03-10","no":"HC24MDDS0074","vp":"2024-11-08 ~ 2025-11-07","docs":[],"_open":false,"result":"승인","cra_date":"2026-03-05","pi_date":"","receipt":"","approval":"2026-03-10","notify":"","resub":[]},{"id":"i68","site":"05","siteName":"경희대학교병원","type":"초기심의 시정승인","cmt":"[시정승인] 01. IND 승인서, Protocol Agreement, 별첨류, 보험증권, 이해상충서약서, 연구비","sd":"2024-08-30","ad":"2024-10-08","no":"KHUH IRB 2024-09-027","vp":"2024-10-28 ~ 2025-10-27","docs":[{"n":"연구계획서 (PRT)","m":"1.2","r":"","sv":"1.2"},{"n":"동의서 (ICF)","m":"Main 1.2_1.1 인체유래물/임신정보 1.0_1.0","r":"","sv":"Main 1.2_1.1 인체유래물/임신정보 1.0_1.0"},{"n":"연구자 자료집 (IB)","m":"4.0","r":"","sv":"-"},{"n":"증례기록서 (CRF)","m":"1.0 (Paper CRF)","r":"","sv":"1.0 (Paper CRF)"}],"_open":false,"result":"승인","cra_date":"2024-08-30","pi_date":"","receipt":"","approval":"2024-10-08","notify":"","resub":[]},{"id":"i69","site":"05","siteName":"경희대학교병원","type":"변경승인","cmt":"[승인] 02. 심사의견 답변서, ICF 변경대비표, 연구비 산정내역서","sd":"2024-10-16","ad":"2024-10-28","no":"KHUH IRB 2024-09-027","vp":"2024-10-28 ~ 2025-10-27","docs":[{"n":"동의서 (ICF)","m":"Main 1.2_2.0 임신정보 1.0_2.0","r":"","sv":"Main 1.2_2.0 임신정보 1.0_2.0"}],"_open":false,"result":"승인","cra_date":"2024-10-16","pi_date":"","receipt":"","approval":"2024-10-28","notify":"","resub":[]},{"id":"i70","site":"05","siteName":"경희대학교병원","type":"변경승인","cmt":"[승인] 03. 대상자 수 변경, PRT V2.1, 모집공고, 연구비 변경","sd":"2024-11-05","ad":"2024-12-03","no":"KHUH IRB 2024-09-027","vp":"2024-10-28 ~ 2025-10-27","docs":[{"n":"연구계획서 (PRT)","m":"2.1","r":"","sv":"2.1"},{"n":"동의서 (ICF)","m":"Main 2.0_2.0 인체유래물 2.0_1.0 임신정보 2.0_2.0","r":"","sv":"Main 2.0_2.0 인체유래물 2.0_1.0 임신정보 2.0_2.0"},{"n":"증례기록서 (CRF)","m":"2.0 (Paper CRF) / 1.0 (Blank e","r":"","sv":"2.0 (Paper CRF) / 1.0 (Blank e"}],"_open":false,"result":"승인","cra_date":"2024-11-05","pi_date":"","receipt":"","approval":"2024-12-03","notify":"","resub":[]},{"id":"i71","site":"05","siteName":"경희대학교병원","type":"변경승인","cmt":"[승인] 04. 인체유래물 V2.0, 연구비 산정내역서 변경","sd":"2025-01-03","ad":"2025-01-07","no":"KHUH IRB 2024-09-027","vp":"2024-10-28 ~ 2025-10-27","docs":[],"_open":false,"result":"승인","cra_date":"2025-01-03","pi_date":"","receipt":"","approval":"2025-01-07","notify":"","resub":[]},{"id":"i72","site":"05","siteName":"경희대학교병원","type":"위반보고","cmt":"[승인] 05. 위반보고: Major PD 1건(05S-001 Central lab 검체 손상)","sd":"2025-01-24","ad":"2025-02-04","no":"KHUH IRB 2024-09-027","vp":"2024-10-28 ~ 2025-10-27","docs":[],"_open":false,"result":"승인","cra_date":"2025-01-24","pi_date":"","receipt":"","approval":"2025-02-04","notify":"","resub":[]},{"id":"i73","site":"05","siteName":"경희대학교병원","type":"변경승인","cmt":"[승인] 06. ICF 변경대비표 V2.0_2.0→V2.0_2.1","sd":"2025-02-04","ad":"2025-02-10","no":"KHUH IRB 2024-09-027","vp":"2024-10-28 ~ 2025-10-27","docs":[{"n":"동의서 (ICF)","m":"Main 2.0_2.1","r":"","sv":"Main 2.0_2.1"}],"_open":false,"result":"승인","cra_date":"2025-02-04","pi_date":"","receipt":"","approval":"2025-02-10","notify":"","resub":[]},{"id":"i74","site":"05","siteName":"경희대학교병원","type":"변경승인","cmt":"[승인] 07. PRT V2.2, eCRF V2.0, 별첨2 V3.0, CRA 이솔 추가","sd":"2025-03-20","ad":"2025-04-02","no":"KHUH IRB 2024-09-027","vp":"2024-10-28 ~ 2025-10-27","docs":[{"n":"연구계획서 (PRT)","m":"2.2","r":"","sv":"2.2"},{"n":"동의서 (ICF)","m":"Main 2.1_1.0","r":"","sv":"Main 2.1_1.0"},{"n":"증례기록서 (CRF)","m":"2.0 (Blank eCRF)","r":"","sv":"2.0 (Blank eCRF)"}],"_open":false,"result":"승인","cra_date":"2025-03-20","pi_date":"","receipt":"","approval":"2025-04-02","notify":"","resub":[]},{"id":"i75","site":"05","siteName":"경희대학교병원","type":"위반보고","cmt":"[승인] 08. 위반보고: Major PD 1건(05S-012 V9 ECG 미시행)","sd":"2025-07-10","ad":"2025-07-23","no":"KHUH IRB 2024-09-027","vp":"2024-10-28 ~ 2025-10-27","docs":[],"_open":false,"result":"승인","cra_date":"2025-07-10","pi_date":"","receipt":"","approval":"2025-07-23","notify":"","resub":[]},{"id":"i76","site":"05","siteName":"경희대학교병원","type":"변경승인","cmt":"[승인] 09. 대상자 수 12→11명, PRT V3.0, 보험증권 변경","sd":"2025-08-06","ad":"2025-08-29","no":"KHUH IRB 2024-09-027","vp":"2024-10-28 ~ 2025-10-27","docs":[{"n":"연구계획서 (PRT)","m":"3","r":"","sv":"3"}],"_open":false,"result":"승인","cra_date":"2025-08-06","pi_date":"","receipt":"","approval":"2025-08-29","notify":"","resub":[]},{"id":"i77","site":"05","siteName":"경희대학교병원","type":"변경승인","cmt":"[승인] 10. 연구비 변경(최종 연구비 정산)","sd":"2025-09-18","ad":"2025-09-25","no":"KHUH IRB 2024-09-027","vp":"2024-10-28 ~ 2025-10-27","docs":[],"_open":false,"result":"승인","cra_date":"2025-09-18","pi_date":"","receipt":"","approval":"2025-09-25","notify":"","resub":[]},{"id":"i78","site":"05","siteName":"경희대학교병원","type":"변경승인","cmt":"[승인] 11. IB V4.0→V6.0","sd":"2025-10-16","ad":"2025-10-30","no":"KHUH IRB 2024-09-027","vp":"2024-10-28 ~ 2025-10-27","docs":[{"n":"연구자 자료집 (IB)","m":"6.0","r":"","sv":"-"}],"_open":false,"result":"승인","cra_date":"2025-10-16","pi_date":"","receipt":"","approval":"2025-10-30","notify":"","resub":[]},{"id":"i79","site":"05","siteName":"경희대학교병원","type":"안전성보고","cmt":"[승인] 12. 최신안전성정보보고(DSUR) V2.0","sd":"2025-10-16","ad":"2025-10-22","no":"KHUH IRB 2024-09-027","vp":"2024-10-28 ~ 2025-10-27","docs":[],"_open":false,"result":"승인","cra_date":"2025-10-16","pi_date":"","receipt":"","approval":"2025-10-22","notify":"","resub":[]},{"id":"i80","site":"05","siteName":"경희대학교병원","type":"종료보고","cmt":"[승인] 13. 종료보고서, 스크리닝 실패 및 중도탈락 사유 보고서","sd":"2025-11-04","ad":"2025-11-17","no":"KHUH IRB 2024-09-027","vp":"2024-10-28 ~ 2025-10-27","docs":[],"_open":false,"result":"승인","cra_date":"2025-11-04","pi_date":"","receipt":"","approval":"2025-11-17","notify":"","resub":[]},{"id":"i81","site":"05","siteName":"경희대학교병원","type":"변경승인","cmt":"[승인] 14. CRA 변경(이수현→이현아)","sd":"2026-02-27","ad":"2026-03-01","no":"KHUH IRB 2024-09-027","vp":"2024-10-28 ~ 2025-10-27","docs":[],"_open":false,"result":"승인","cra_date":"2026-02-27","pi_date":"","receipt":"","approval":"2026-03-01","notify":"","resub":[]},{"id":"i82","site":"06","siteName":"고려대학교 안산병원","type":"초기심의 시정승인","cmt":"[시정승인] 01. IND 승인서, 별첨류, 보험증권, Patient Card, 임상약 관리비","sd":"2024-09-12","ad":"2024-10-08","no":"2024AS0273","vp":"2024-10-29 ~ 2025-10-28","docs":[{"n":"연구계획서 (PRT)","m":"1.2","r":"","sv":"1.2"},{"n":"동의서 (ICF)","m":"Main 1.2_1.0 인체유래물/임신정보 1.0_1.0","r":"","sv":"Main 1.2_1.0 인체유래물/임신정보 1.0_1.0"},{"n":"연구자 자료집 (IB)","m":"4.0","r":"","sv":"-"},{"n":"증례기록서 (CRF)","m":"1.0 (Paper CRF)","r":"","sv":"1.0 (Paper CRF)"}],"_open":false,"result":"승인","cra_date":"2024-09-12","pi_date":"","receipt":"","approval":"2024-10-08","notify":"","resub":[]},{"id":"i83","site":"06","siteName":"고려대학교 안산병원","type":"변경승인","cmt":"[승인] 02. ICF 변경대비표, 오젬픽 환자용 사용설명서","sd":"2024-10-23","ad":"2024-10-29","no":"2024AS0273","vp":"2024-10-29 ~ 2025-10-28","docs":[{"n":"동의서 (ICF)","m":"Main 1.2_2.0","r":"","sv":"Main 1.2_2.0"}],"_open":false,"result":"승인","cra_date":"2024-10-23","pi_date":"","receipt":"","approval":"2024-10-29","notify":"","resub":[]},{"id":"i84","site":"06","siteName":"고려대학교 안산병원","type":"변경승인","cmt":"[승인] 03. 대상자 수 변경, PRT V2.1, 관리약사 변경, 모집공고","sd":"2024-11-21","ad":"2024-11-26","no":"2024AS0273","vp":"2024-10-29 ~ 2025-10-28","docs":[{"n":"연구계획서 (PRT)","m":"2.1","r":"","sv":"2.1"},{"n":"동의서 (ICF)","m":"Main 2.0_1.0 인체유래물/임신정보 2.0_1.0","r":"","sv":"Main 2.0_1.0 인체유래물/임신정보 2.0_1.0"},{"n":"증례기록서 (CRF)","m":"1.0 (Blank eCRF)","r":"","sv":"1.0 (Blank eCRF)"}],"_open":false,"result":"승인","cra_date":"2024-11-21","pi_date":"","receipt":"","approval":"2024-11-26","notify":"","resub":[]},{"id":"i85","site":"06","siteName":"고려대학교 안산병원","type":"변경승인","cmt":"[승인] 04. 연구자 인건비 변경(56,400,000→74,800,000원)","sd":"2025-01-15","ad":"2025-01-17","no":"2024AS0273","vp":"2024-10-29 ~ 2025-10-28","docs":[],"_open":false,"result":"승인","cra_date":"2025-01-15","pi_date":"","receipt":"","approval":"2025-01-17","notify":"","resub":[]},{"id":"i86","site":"06","siteName":"고려대학교 안산병원","type":"위반보고","cmt":"[승인] 05. 위반보고: Minor PD 7건(06S-001~006S-007 V1 Glucose 미실시)","sd":"2025-02-05","ad":"2025-02-10","no":"2024AS0273","vp":"2024-10-29 ~ 2025-10-28","docs":[],"_open":false,"result":"승인","cra_date":"2025-02-05","pi_date":"","receipt":"","approval":"2025-02-10","notify":"","resub":[]},{"id":"i87","site":"06","siteName":"고려대학교 안산병원","type":"변경승인","cmt":"[승인] 06. PI 변경(김난희→서지아), 공동연구자/관리약사 변경, 자료 및 안전성 모니터링 계획서 V2.1","sd":"2025-02-18","ad":"2025-02-25","no":"2024AS0273","vp":"2024-10-29 ~ 2025-10-28","docs":[{"n":"동의서 (ICF)","m":"Main 2.0_1.1 인체유래물/임신정보 2.0_1.1","r":"","sv":"Main 2.0_1.1 인체유래물/임신정보 2.0_1.1"}],"_open":false,"result":"승인","cra_date":"2025-02-18","pi_date":"","receipt":"","approval":"2025-02-25","notify":"","resub":[]},{"id":"i88","site":"06","siteName":"고려대학교 안산병원","type":"변경승인","cmt":"[승인] 07. PRT V2.2, eCRF V2.0, 별첨2 V3.0, 고대안산 시험자 변경","sd":"2025-03-21","ad":"2025-04-01","no":"2024AS0273","vp":"2024-10-29 ~ 2025-10-28","docs":[{"n":"연구계획서 (PRT)","m":"2.2","r":"","sv":"2.2"},{"n":"동의서 (ICF)","m":"Main 2.1_1.0","r":"","sv":"Main 2.1_1.0"},{"n":"증례기록서 (CRF)","m":"V2.0 (Blank eCRF)","r":"","sv":"V2.0 (Blank eCRF)"}],"_open":false,"result":"승인","cra_date":"2025-03-21","pi_date":"","receipt":"","approval":"2025-04-01","notify":"","resub":[]},{"id":"i89","site":"06","siteName":"고려대학교 안산병원","type":"변경승인","cmt":"[승인] 08. PI 복귀(김난희), PRT V3.0, 조정기관 추가, 보험증권","sd":"2025-08-14","ad":"2025-08-26","no":"2024AS0273","vp":"2024-10-29 ~ 2025-10-28","docs":[{"n":"연구계획서 (PRT)","m":"3","r":"","sv":"3"}],"_open":false,"result":"승인","cra_date":"2025-08-14","pi_date":"","receipt":"","approval":"2025-08-26","notify":"","resub":[]},{"id":"i90","site":"06","siteName":"고려대학교 안산병원","type":"위반보고","cmt":"[승인] 09. Minor PD 7건(06S-001~009 Visit Window 위반), 미준수 보고(지연)","sd":"2025-08-22","ad":"2025-09-02","no":"2024AS0273","vp":"2024-10-29 ~ 2025-10-28","docs":[],"_open":false,"result":"승인","cra_date":"2025-08-22","pi_date":"","receipt":"","approval":"2025-09-02","notify":"","resub":[]},{"id":"i91","site":"06","siteName":"고려대학교 안산병원","type":"종료보고","cmt":"[승인] 10. 종료보고: 대상자별 동의구득 현황표","sd":"2025-10-21","ad":"2025-10-28","no":"2024AS0273","vp":"2024-10-29 ~ 2025-10-28","docs":[],"_open":false,"result":"승인","cra_date":"2025-10-21","pi_date":"","receipt":"","approval":"2025-10-28","notify":"","resub":[]},{"id":"i92","site":"06","siteName":"고려대학교 안산병원","type":"안전성보고","cmt":"[승인] 11. 최신안전성정보보고(DSUR) V2.0, 타기관 SAE","sd":"2025-10-16","ad":"2025-11-11","no":"2024AS0273","vp":"2024-10-29 ~ 2025-10-28","docs":[],"_open":false,"result":"승인","cra_date":"2025-10-16","pi_date":"","receipt":"","approval":"2025-11-11","notify":"","resub":[]},{"id":"i93","site":"06","siteName":"고려대학교 안산병원","type":"변경승인","cmt":"[승인] 12. 연구비 변경(최종 연구비 정산), 약제관리비 재산정","sd":"2025-12-15","ad":"2025-12-21","no":"2024AS0273","vp":"2024-10-29 ~ 2025-10-28","docs":[{"n":"연구자 자료집 (IB)","m":"6","r":"","sv":"-"}],"_open":false,"result":"승인","cra_date":"2025-12-15","pi_date":"","receipt":"","approval":"2025-12-21","notify":"","resub":[]},{"id":"i94","site":"06","siteName":"고려대학교 안산병원","type":"변경승인","cmt":"[승인] 13. 연구비 변경(최종 연구비 정산) 추가","sd":"2026-01-29","ad":"2026-02-10","no":"2024AS0273","vp":"2024-10-29 ~ 2025-10-28","docs":[],"_open":false,"result":"승인","cra_date":"2026-01-29","pi_date":"","receipt":"","approval":"2026-02-10","notify":"","resub":[]},{"id":"i95","site":"07","siteName":"대전을지대학교병원","type":"초기심의 시정승인","cmt":"[시정승인] 01. IND 승인서, Protocol Synopsis, 별첨류, 보험증권, 연구비","sd":"2024-09-10","ad":"2024-10-08","no":"2024-09-006","vp":"2024-11-18 ~ 2026-03-03","docs":[{"n":"연구계획서 (PRT)","m":"1.2","r":"","sv":"1.2"},{"n":"동의서 (ICF)","m":"Main 1.2_1.0 인체유래물/임신정보 1.0_1.0","r":"","sv":"Main 1.2_1.0 인체유래물/임신정보 1.0_1.0"},{"n":"연구자 자료집 (IB)","m":"4.0","r":"","sv":"-"},{"n":"증례기록서 (CRF)","m":"1.0 (Paper CRF)","r":"","sv":"1.0 (Paper CRF)"}],"_open":false,"result":"승인","cra_date":"2024-09-10","pi_date":"","receipt":"","approval":"2024-10-08","notify":"","resub":[]},{"id":"i96","site":"07","siteName":"대전을지대학교병원","type":"변경승인","cmt":"[승인] 02. 시정답변서, PRT 변경대비표, ICF 변경대비표","sd":"2024-10-23","ad":"2024-11-18","no":"2024-09-006","vp":"2024-11-18 ~ 2026-03-03","docs":[{"n":"동의서 (ICF)","m":"Main 1.2_1.1","r":"","sv":"Main 1.2_1.1"}],"_open":false,"result":"승인","cra_date":"2024-10-23","pi_date":"","receipt":"","approval":"2024-11-18","notify":"","resub":[]},{"id":"i97","site":"07","siteName":"대전을지대학교병원","type":"변경승인","cmt":"[승인] 03. 대상자 수 변경, PRT V2.1, 기관 변경, 모집공고, 실행예산편성내역서","sd":"2024-11-21","ad":"2024-12-23","no":"2024-09-006","vp":"2024-11-18 ~ 2026-03-03","docs":[{"n":"연구계획서 (PRT)","m":"2.1","r":"","sv":"2.1"},{"n":"동의서 (ICF)","m":"Main 2.0_1.0 인체유래물/임신정보 2.0_1.0","r":"","sv":"Main 2.0_1.0 인체유래물/임신정보 2.0_1.0"},{"n":"증례기록서 (CRF)","m":"1.0 (Blank eCRF)","r":"","sv":"1.0 (Blank eCRF)"}],"_open":false,"result":"승인","cra_date":"2024-11-21","pi_date":"","receipt":"","approval":"2024-12-23","notify":"","resub":[]},{"id":"i98","site":"07","siteName":"대전을지대학교병원","type":"변경승인","cmt":"[승인] 04. PRT V2.2, eCRF V2.0, 별첨2 V3.0, CGM 설명문 V2.1, CRA 이솔 추가","sd":"2025-03-21","ad":"2025-04-11","no":"2024-09-006","vp":"2024-11-18 ~ 2026-03-03","docs":[{"n":"연구계획서 (PRT)","m":"2.2","r":"","sv":"2.2"},{"n":"동의서 (ICF)","m":"Main 2.1_1.0","r":"","sv":"Main 2.1_1.0"},{"n":"증례기록서 (CRF)","m":"2.0 (Blank eCRF)","r":"","sv":"2.0 (Blank eCRF)"}],"_open":false,"result":"승인","cra_date":"2025-03-21","pi_date":"","receipt":"","approval":"2025-04-11","notify":"","resub":[]},{"id":"i99","site":"07","siteName":"대전을지대학교병원","type":"변경승인","cmt":"[승인] 05. CRA 변경(이현경→김민지)","sd":"2025-04-28","ad":"2025-05-21","no":"2024-09-006","vp":"2024-11-18 ~ 2026-03-03","docs":[],"_open":false,"result":"승인","cra_date":"2025-04-28","pi_date":"","receipt":"","approval":"2025-05-21","notify":"","resub":[]},{"id":"i100","site":"07","siteName":"대전을지대학교병원","type":"위반보고","cmt":"[승인] 06. 위반보고(Minor PD 3건)","sd":"2025-05-26","ad":"2025-06-10","no":"2024-09-006","vp":"2024-11-18 ~ 2026-03-03","docs":[],"_open":false,"result":"승인","cra_date":"2025-05-26","pi_date":"","receipt":"","approval":"2025-06-10","notify":"","resub":[]},{"id":"i101","site":"07","siteName":"대전을지대학교병원","type":"지속심사","cmt":"[시정승인] 07. 지속심의: 다기관 현황표, 연구자 연구과제 점검 리스트","sd":"2025-05-26","ad":"2025-06-19","no":"2024-09-006","vp":"2024-11-18 ~ 2026-03-03","docs":[],"_open":false,"result":"승인","cra_date":"2025-05-26","pi_date":"","receipt":"","approval":"2025-06-19","notify":"","resub":[]},{"id":"i102","site":"07","siteName":"대전을지대학교병원","type":"변경승인","cmt":"[승인] 08. 지속심의 시정승인 답변서, 점검 리스트 오기 수정","sd":"2025-06-26","ad":"2025-07-04","no":"2024-09-006","vp":"2024-11-18 ~ 2026-03-03","docs":[],"_open":false,"result":"승인","cra_date":"2025-06-26","pi_date":"","receipt":"","approval":"2025-07-04","notify":"","resub":[]},{"id":"i103","site":"07","siteName":"대전을지대학교병원","type":"변경승인","cmt":"[승인] 09. 정정보고: 연구승인기간 오기 정정(2026-07-03→2026-03-03), 중간보고 시기 정정","sd":"","ad":"2025-07-29","no":"2024-09-006","vp":"2024-11-18 ~ 2026-03-03","docs":[],"_open":false,"result":"승인","cra_date":"","pi_date":"","receipt":"","approval":"2025-07-29","notify":"","resub":[]},{"id":"i104","site":"07","siteName":"대전을지대학교병원","type":"변경승인","cmt":"[승인] 10. PRT V3.0, 별첨2 V3.0, 보험증권, 대상자 수 12→7명","sd":"2025-08-14","ad":"2025-09-24","no":"2024-09-006","vp":"2024-11-18 ~ 2026-03-03","docs":[{"n":"연구계획서 (PRT)","m":"3","r":"","sv":"3"}],"_open":false,"result":"승인","cra_date":"2025-08-14","pi_date":"","receipt":"","approval":"2025-09-24","notify":"","resub":[]},{"id":"i105","site":"07","siteName":"대전을지대학교병원","type":"위반보고","cmt":"[승인] 11. 위반보고(Minor PD 1건)","sd":"2025-09-16","ad":"2025-10-20","no":"2024-09-006","vp":"2024-11-18 ~ 2026-03-03","docs":[],"_open":false,"result":"승인","cra_date":"2025-09-16","pi_date":"","receipt":"","approval":"2025-10-20","notify":"","resub":[]},{"id":"i106","site":"07","siteName":"대전을지대학교병원","type":"변경승인","cmt":"[승인] 12. 연구비 변경(최종 연구비 정산), IB V6.0","sd":"2025-11-05","ad":"2025-12-23","no":"2024-09-006","vp":"2024-11-18 ~ 2026-03-03","docs":[{"n":"연구자 자료집 (IB)","m":"6","r":"","sv":"-"}],"_open":false,"result":"승인","cra_date":"2025-11-05","pi_date":"","receipt":"","approval":"2025-12-23","notify":"","resub":[]},{"id":"i107","site":"07","siteName":"대전을지대학교병원","type":"안전성보고","cmt":"[승인] 13. 최신안전성정보보고(DSUR) V2.0, 타기관 이상반응","sd":"2025-11-05","ad":"2025-12-23","no":"2024-09-006","vp":"2024-11-18 ~ 2026-03-03","docs":[],"_open":false,"result":"승인","cra_date":"2025-11-05","pi_date":"","receipt":"","approval":"2025-12-23","notify":"","resub":[]},{"id":"i108","site":"07","siteName":"대전을지대학교병원","type":"종료보고","cmt":"[승인] 14. 종료보고: 연구자 연구과제 점검 리스트, 다기관 현황표","sd":"2026-01-06","ad":"2026-01-29","no":"2024-09-006","vp":"2024-11-18 ~ 2026-03-03","docs":[],"_open":false,"result":"승인","cra_date":"2026-01-06","pi_date":"","receipt":"","approval":"2026-01-29","notify":"","resub":[]},{"id":"i109","site":"08","siteName":"삼성서울병원","type":"초기심의 시정승인","cmt":"[시정승인] 01. IND 승인서, Protocol Synopsis, 별첨류, 보험증권, 연구자 서약서","sd":"2024-09-12","ad":"2024-10-02","no":"2024-09-055","vp":"2024-10-14 ~ 2026-10-13","docs":[{"n":"연구계획서 (PRT)","m":"1.2","r":"","sv":"1.2"},{"n":"동의서 (ICF)","m":"Main 1.2_1.0 인체유래물/임신정보 1.0_1.0","r":"","sv":"Main 1.2_1.0 인체유래물/임신정보 1.0_1.0"},{"n":"연구자 자료집 (IB)","m":"4.0","r":"","sv":"-"},{"n":"증례기록서 (CRF)","m":"1.0 (Paper CRF)","r":"","sv":"1.0 (Paper CRF)"}],"_open":false,"result":"승인","cra_date":"2024-09-12","pi_date":"","receipt":"","approval":"2024-10-02","notify":"","resub":[]},{"id":"i110","site":"08","siteName":"삼성서울병원","type":"변경승인","cmt":"[승인] 02. 시정보완 답변서, 자료 및 안전성 모니터링 계획서 V1.0","sd":"2024-10-14","ad":"2024-10-14","no":"2024-09-055","vp":"2024-10-14 ~ 2026-10-13","docs":[{"n":"동의서 (ICF)","m":"Main 1.2_2.0","r":"","sv":"Main 1.2_2.0"}],"_open":false,"result":"승인","cra_date":"2024-10-14","pi_date":"","receipt":"","approval":"2024-10-14","notify":"","resub":[]},{"id":"i111","site":"08","siteName":"삼성서울병원","type":"변경승인","cmt":"[승인] 03. 대상자 수 변경, PRT V2.1, DSMP V2.0, 모집공고","sd":"2024-10-29","ad":"2024-11-03","no":"2024-09-055","vp":"2024-10-14 ~ 2026-10-13","docs":[{"n":"연구계획서 (PRT)","m":"2.1","r":"","sv":"2.1"},{"n":"동의서 (ICF)","m":"Main 2.0_1.0 인체유래물/임신정보 2.0_1.0","r":"","sv":"Main 2.0_1.0 인체유래물/임신정보 2.0_1.0"},{"n":"증례기록서 (CRF)","m":"1.0 (Blank eCRF)","r":"","sv":"1.0 (Blank eCRF)"}],"_open":false,"result":"승인","cra_date":"2024-10-29","pi_date":"","receipt":"","approval":"2024-11-03","notify":"","resub":[]},{"id":"i112","site":"08","siteName":"삼성서울병원","type":"변경승인","cmt":"[승인] 04. 모집공고(원내) 추가, 연구담당자(Lab Technician) 추가","sd":"2024-12-16","ad":"2024-12-17","no":"2024-09-055","vp":"2024-10-14 ~ 2026-10-13","docs":[],"_open":false,"result":"승인","cra_date":"2024-12-16","pi_date":"","receipt":"","approval":"2024-12-17","notify":"","resub":[]},{"id":"i113","site":"08","siteName":"삼성서울병원","type":"지속심사","cmt":"[승인] 05. 과제점검리스트(1차 중간보고)","sd":"2025-02-27","ad":"2025-02-28","no":"2024-09-055","vp":"2024-10-14 ~ 2026-10-13","docs":[],"_open":false,"result":"승인","cra_date":"2025-02-27","pi_date":"","receipt":"","approval":"2025-02-28","notify":"","resub":[]},{"id":"i114","site":"08","siteName":"삼성서울병원","type":"변경승인","cmt":"[승인] 06. PRT V2.2, eCRF V2.0, 별첨2 V3.0, CRA 이솔 추가","sd":"2025-03-18","ad":"2025-03-23","no":"2024-09-055","vp":"2024-10-14 ~ 2026-10-13","docs":[{"n":"연구계획서 (PRT)","m":"2.2","r":"","sv":"2.2"},{"n":"동의서 (ICF)","m":"Main 2.1_1.0","r":"","sv":"Main 2.1_1.0"},{"n":"증례기록서 (CRF)","m":"2.0 (Blank eCRF)","r":"","sv":"2.0 (Blank eCRF)"}],"_open":false,"result":"승인","cra_date":"2025-03-18","pi_date":"","receipt":"","approval":"2025-03-23","notify":"","resub":[]},{"id":"i115","site":"08","siteName":"삼성서울병원","type":"변경승인","cmt":"[승인] 07. CRC 변경(박별 삭제→신근철 추가), 보험증권 변경","sd":"2025-05-21","ad":"2025-05-22","no":"2024-09-055","vp":"2024-10-14 ~ 2026-10-13","docs":[],"_open":false,"result":"승인","cra_date":"2025-05-21","pi_date":"","receipt":"","approval":"2025-05-22","notify":"","resub":[]},{"id":"i116","site":"08","siteName":"삼성서울병원","type":"변경승인","cmt":"[승인] 08. PRT V3.0, 별첨2 V3.0, 대상자 수 12→1명","sd":"2025-08-13","ad":"2025-08-20","no":"2024-09-055","vp":"2024-10-14 ~ 2026-10-13","docs":[{"n":"연구계획서 (PRT)","m":"3.0","r":"","sv":"3.0"}],"_open":false,"result":"승인","cra_date":"2025-08-13","pi_date":"","receipt":"","approval":"2025-08-20","notify":"","resub":[]},{"id":"i117","site":"08","siteName":"삼성서울병원","type":"지속심사","cmt":"[승인] 09. 과제점검리스트(2차 중간보고), 위반보고(Minor PD 4건) 포함","sd":"2025-08-21","ad":"2025-08-21","no":"2024-09-055","vp":"2024-10-14 ~ 2026-10-13","docs":[],"_open":false,"result":"승인","cra_date":"2025-08-21","pi_date":"","receipt":"","approval":"2025-08-21","notify":"","resub":[]},{"id":"i118","site":"08","siteName":"삼성서울병원","type":"변경승인","cmt":"[승인] 10. IB V4.0→V6.0","sd":"2025-10-15","ad":"2025-10-16","no":"2024-09-055","vp":"2024-10-14 ~ 2026-10-13","docs":[{"n":"연구자 자료집 (IB)","m":"6.0","r":"","sv":"-"}],"_open":false,"result":"승인","cra_date":"2025-10-15","pi_date":"","receipt":"","approval":"2025-10-16","notify":"","resub":[]},{"id":"i119","site":"08","siteName":"삼성서울병원","type":"안전성보고","cmt":"[승인] 11. 최신안전성정보보고(DSUR) V2.0","sd":"2025-10-15","ad":"2025-10-16","no":"2024-09-055","vp":"2024-10-14 ~ 2026-10-13","docs":[],"_open":false,"result":"승인","cra_date":"2025-10-15","pi_date":"","receipt":"","approval":"2025-10-16","notify":"","resub":[]},{"id":"i120","site":"08","siteName":"삼성서울병원","type":"종료보고","cmt":"[승인] 12. 종료보고: 과제점검리스트, 위반보고(Minor PD 2건) 포함","sd":"2025-10-30","ad":"2025-10-31","no":"2024-09-055","vp":"2024-10-14 ~ 2026-10-13","docs":[],"_open":false,"result":"승인","cra_date":"2025-10-30","pi_date":"","receipt":"","approval":"2025-10-31","notify":"","resub":[]},{"id":"i121","site":"09","siteName":"영남대학교병원","type":"초기심의 승인","cmt":"[승인] 01. IND 승인서, 별첨류, 보험증권, CV, 연구비 산정내역서, 검토의견 답변서","sd":"2024-09-27","ad":"2024-10-10","no":"2024-10-003","vp":"2024-10-10 ~ 2026-02-09","docs":[{"n":"연구계획서 (PRT)","m":"1.2","r":"","sv":"1.2"},{"n":"동의서 (ICF)","m":"Main 1.2_1.0 인체유래물/임신정보 1.0_1.0","r":"","sv":"Main 1.2_1.0 인체유래물/임신정보 1.0_1.0"},{"n":"연구자 자료집 (IB)","m":"4.0","r":"","sv":"-"},{"n":"증례기록서 (CRF)","m":"1.0 (Paper CRF)","r":"","sv":"1.0 (Paper CRF)"}],"_open":false,"result":"승인","cra_date":"2024-09-27","pi_date":"","receipt":"","approval":"2024-10-10","notify":"","resub":[]},{"id":"i122","site":"09","siteName":"영남대학교병원","type":"변경승인","cmt":"[승인] 02. 대상자 수 변경, PRT V2.1, 모집공고, 연구비 변경","sd":"2024-10-30","ad":"2024-11-08","no":"2024-10-003","vp":"2024-10-10 ~ 2026-02-09","docs":[{"n":"연구계획서 (PRT)","m":"2.1","r":"","sv":"2.1"},{"n":"동의서 (ICF)","m":"Main 2.0_1.0 인체유래물/임신정보 2.0_1.0","r":"","sv":"Main 2.0_1.0 인체유래물/임신정보 2.0_1.0"},{"n":"증례기록서 (CRF)","m":"1.0 (Blank eCRF)","r":"","sv":"1.0 (Blank eCRF)"}],"_open":false,"result":"승인","cra_date":"2024-10-30","pi_date":"","receipt":"","approval":"2024-11-08","notify":"","resub":[]},{"id":"i123","site":"09","siteName":"영남대학교병원","type":"변경승인","cmt":"[승인] 03. 연구비 산정내역서 변경대비표(2024-10-25→2025-01-10)","sd":"2025-01-10","ad":"2025-01-31","no":"2024-10-003","vp":"2024-10-10 ~ 2026-02-09","docs":[],"_open":false,"result":"승인","cra_date":"2025-01-10","pi_date":"","receipt":"","approval":"2025-01-31","notify":"","resub":[]},{"id":"i124","site":"09","siteName":"영남대학교병원","type":"위반보고","cmt":"[승인] 04. 위반보고: Minor PD 1건(09S-002 V1 DEXA 검사 누락)","sd":"2025-02-10","ad":"2025-02-21","no":"2024-10-003","vp":"2024-10-10 ~ 2026-02-09","docs":[],"_open":false,"result":"승인","cra_date":"2025-02-10","pi_date":"","receipt":"","approval":"2025-02-21","notify":"","resub":[]},{"id":"i125","site":"09","siteName":"영남대학교병원","type":"위반보고","cmt":"[승인] 05. 위반보고: Minor PD 1건(09S-003 V1 IP 투여 후 DEXA 시행)","sd":"2025-02-21","ad":"2025-03-07","no":"2024-10-003","vp":"2024-10-10 ~ 2026-02-09","docs":[],"_open":false,"result":"승인","cra_date":"2025-02-21","pi_date":"","receipt":"","approval":"2025-03-07","notify":"","resub":[]},{"id":"i126","site":"09","siteName":"영남대학교병원","type":"위반보고","cmt":"[승인] 06. 위반보고: Minor PD 1건(09S-004 V1 IP 투여 후 DEXA 시행)","sd":"2025-02-21","ad":"2025-03-07","no":"2024-10-003","vp":"2024-10-10 ~ 2026-02-09","docs":[],"_open":false,"result":"승인","cra_date":"2025-02-21","pi_date":"","receipt":"","approval":"2025-03-07","notify":"","resub":[]},{"id":"i127","site":"09","siteName":"영남대학교병원","type":"위반보고","cmt":"[승인] 07. 위반보고: Minor PD 1건(09S-005 V1 IP 투여 후 DEXA 시행)","sd":"2025-02-21","ad":"2025-03-07","no":"2024-10-003","vp":"2024-10-10 ~ 2026-02-09","docs":[],"_open":false,"result":"승인","cra_date":"2025-02-21","pi_date":"","receipt":"","approval":"2025-03-07","notify":"","resub":[]},{"id":"i128","site":"09","siteName":"영남대학교병원","type":"지속심사","cmt":"[승인] 08. 지속심의(1차 중간보고): 과제점검리스트, PD 사례 개요(4건), 다기관 현황표","sd":"2025-02-27","ad":"2025-03-13","no":"2024-10-003","vp":"2024-10-10 ~ 2026-02-09","docs":[],"_open":false,"result":"승인","cra_date":"2025-02-27","pi_date":"","receipt":"","approval":"2025-03-13","notify":"","resub":[]},{"id":"i129","site":"09","siteName":"영남대학교병원","type":"변경승인","cmt":"[승인] 09. PRT V2.2, eCRF V2.0, 별첨2 V3.0, CRA 이솔 추가","sd":"2025-03-18","ad":"2025-03-28","no":"2024-10-003","vp":"2024-10-10 ~ 2026-02-09","docs":[{"n":"연구계획서 (PRT)","m":"2.2","r":"","sv":"2.2"},{"n":"동의서 (ICF)","m":"Main 2.1_1.0","r":"","sv":"Main 2.1_1.0"},{"n":"증례기록서 (CRF)","m":"2.0 (Blank eCRF)","r":"","sv":"2.0 (Blank eCRF)"}],"_open":false,"result":"승인","cra_date":"2025-03-18","pi_date":"","receipt":"","approval":"2025-03-28","notify":"","resub":[]},{"id":"i130","site":"09","siteName":"영남대학교병원","type":"위반보고","cmt":"[시정승인] 10. 위반보고: Major PD 1건(09S-007 V1 IP 복부 이외 부위 투약)","sd":"2025-05-07","ad":"2025-05-21","no":"2024-10-003","vp":"2024-10-10 ~ 2026-02-09","docs":[],"_open":false,"result":"승인","cra_date":"2025-05-07","pi_date":"","receipt":"","approval":"2025-05-21","notify":"","resub":[]},{"id":"i131","site":"09","siteName":"영남대학교병원","type":"위반보고","cmt":"[승인] 11. 위반보고: Minor PD 1건(09S-002 V13 Visit Window 위반)","sd":"2025-05-14","ad":"2025-05-26","no":"2024-10-003","vp":"2024-10-10 ~ 2026-02-09","docs":[],"_open":false,"result":"승인","cra_date":"2025-05-14","pi_date":"","receipt":"","approval":"2025-05-26","notify":"","resub":[]},{"id":"i132","site":"09","siteName":"영남대학교병원","type":"변경승인","cmt":"[승인] 12. CRA 변경(김유진→김민지B)","sd":"2025-05-19","ad":"2025-06-02","no":"2024-10-003","vp":"2024-10-10 ~ 2026-02-09","docs":[],"_open":false,"result":"승인","cra_date":"2025-05-19","pi_date":"","receipt":"","approval":"2025-06-02","notify":"","resub":[]},{"id":"i133","site":"09","siteName":"영남대학교병원","type":"변경승인","cmt":"[승인] 13. Major PD에 대한 시정승인 답변서","sd":"2025-05-23","ad":"2025-06-18","no":"2024-10-003","vp":"2024-10-10 ~ 2026-02-09","docs":[],"_open":false,"result":"승인","cra_date":"2025-05-23","pi_date":"","receipt":"","approval":"2025-06-18","notify":"","resub":[]},{"id":"i134","site":"09","siteName":"영남대학교병원","type":"변경승인","cmt":"[승인] 14. 공동연구자 변경, PRT V3.0, 보험증권, 대상자 수 12→7명","sd":"2025-08-13","ad":"2025-09-01","no":"2024-10-003","vp":"2024-10-10 ~ 2026-02-09","docs":[{"n":"연구계획서 (PRT)","m":"3","r":"","sv":"3"}],"_open":false,"result":"승인","cra_date":"2025-08-13","pi_date":"","receipt":"","approval":"2025-09-01","notify":"","resub":[]},{"id":"i135","site":"09","siteName":"영남대학교병원","type":"지속심사","cmt":"[승인] 15. 지속심의(2차 중간보고): 과제점검리스트, PD 개요(2건), 다기관 현황표","sd":"2025-08-27","ad":"2025-09-11","no":"2024-10-003","vp":"2024-10-10 ~ 2026-02-09","docs":[],"_open":false,"result":"승인","cra_date":"2025-08-27","pi_date":"","receipt":"","approval":"2025-09-11","notify":"","resub":[]},{"id":"i136","site":"09","siteName":"영남대학교병원","type":"위반보고","cmt":"[승인] 16. 위반보고: Minor PD 1건(09S-007 EOS Visit Window 위반)","sd":"2025-09-11","ad":"2025-09-19","no":"2024-10-003","vp":"2024-10-10 ~ 2026-02-09","docs":[],"_open":false,"result":"승인","cra_date":"2025-09-11","pi_date":"","receipt":"","approval":"2025-09-19","notify":"","resub":[]},{"id":"i137","site":"09","siteName":"영남대학교병원","type":"안전성보고","cmt":"[승인] 17. 최신안전성정보보고(DSUR) V2.0","sd":"2025-10-14","ad":"2025-10-24","no":"2024-10-003","vp":"2024-10-10 ~ 2026-02-09","docs":[],"_open":false,"result":"승인","cra_date":"2025-10-14","pi_date":"","receipt":"","approval":"2025-10-24","notify":"","resub":[]},{"id":"i138","site":"09","siteName":"영남대학교병원","type":"변경승인","cmt":"[승인] 18. IB V4.0→V6.0","sd":"2025-10-24","ad":"2025-10-30","no":"2024-10-003","vp":"2024-10-10 ~ 2026-02-09","docs":[{"n":"연구자 자료집 (IB)","m":"6","r":"","sv":"-"}],"_open":false,"result":"승인","cra_date":"2025-10-24","pi_date":"","receipt":"","approval":"2025-10-30","notify":"","resub":[]},{"id":"i139","site":"09","siteName":"영남대학교병원","type":"종료보고","cmt":"[승인] 19. 종료보고: 과제점검리스트, PD 개요, 다기관 현황표","sd":"2025-10-22","ad":"2025-11-10","no":"2024-10-003","vp":"2024-10-10 ~ 2026-02-09","docs":[],"_open":false,"result":"승인","cra_date":"2025-10-22","pi_date":"","receipt":"","approval":"2025-11-10","notify":"","resub":[]},{"id":"i140","site":"09","siteName":"영남대학교병원","type":"변경승인","cmt":"[승인] 20. 연구비 변경(최종 연구비 정산)","sd":"2025-11-04","ad":"2025-11-14","no":"2024-10-003","vp":"2024-10-10 ~ 2026-02-09","docs":[],"_open":false,"result":"승인","cra_date":"2025-11-04","pi_date":"","receipt":"","approval":"2025-11-14","notify":"","resub":[]},{"id":"i141","site":"09","siteName":"영남대학교병원","type":"위반보고","cmt":"[승인] 21. 위반보고: Minor PD 1건(09S-004 V13+1 Visit Window 위반)","sd":"2025-12-08","ad":"2025-12-22","no":"2024-10-003","vp":"2024-10-10 ~ 2026-02-09","docs":[],"_open":false,"result":"승인","cra_date":"2025-12-08","pi_date":"","receipt":"","approval":"2025-12-22","notify":"","resub":[]},{"id":"i142","site":"10","siteName":"연세의료원 세브란스병원","type":"초기심의 시정승인","cmt":"[시정승인] 01. IND 승인서, 별첨류, 보험증권, 취약피험자 보호대책, 모집공고","sd":"2024-10-24","ad":"2024-11-22","no":"4-2024-1472","vp":"2025-01-14 ~ 2026-01-13","docs":[{"n":"연구계획서 (PRT)","m":"2.1","r":"","sv":"2.1"},{"n":"동의서 (ICF)","m":"Main 2.0_1.0 인체유래물/임신정보 2.0_1.0","r":"","sv":"Main 2.0_1.0 인체유래물/임신정보 2.0_1.0"},{"n":"연구자 자료집 (IB)","m":"4.0","r":"","sv":"-"},{"n":"증례기록서 (CRF)","m":"1.0 (Blank eCRF)","r":"","sv":"1.0 (Blank eCRF)"}],"_open":false,"result":"승인","cra_date":"2024-10-24","pi_date":"","receipt":"","approval":"2024-11-22","notify":"","resub":[]},{"id":"i143","site":"10","siteName":"연세의료원 세브란스병원","type":"변경승인","cmt":"[승인] 02. CRC 변경(허근정 추가), ICF 변경대비표, 모집공고(원내 포스터)","sd":"2024-12-10","ad":"2025-01-14","no":"4-2024-1472","vp":"2025-01-14 ~ 2026-01-13","docs":[{"n":"동의서 (ICF)","m":"Main 2.0_1.1 임신정보 2.0_1.1","r":"","sv":"Main 2.0_1.1 임신정보 2.0_1.1"}],"_open":false,"result":"승인","cra_date":"2024-12-10","pi_date":"","receipt":"","approval":"2025-01-14","notify":"","resub":[]},{"id":"i144","site":"10","siteName":"연세의료원 세브란스병원","type":"변경승인","cmt":"[승인] 03. PRT V2.2, eCRF V2.0, 별첨2 V3.0, CRA 박재연 추가, 연구비 변경","sd":"2025-03-24","ad":"2025-03-28","no":"4-2024-1472","vp":"2025-01-14 ~ 2026-01-13","docs":[{"n":"연구계획서 (PRT)","m":"2.2","r":"","sv":"2.2"},{"n":"동의서 (ICF)","m":"Main 2.1_1.0","r":"","sv":"Main 2.1_1.0"},{"n":"증례기록서 (CRF)","m":"2.0 (Blank eCRF)","r":"","sv":"2.0 (Blank eCRF)"}],"_open":false,"result":"승인","cra_date":"2025-03-24","pi_date":"","receipt":"","approval":"2025-03-28","notify":"","resub":[]},{"id":"i145","site":"10","siteName":"연세의료원 세브란스병원","type":"위반보고","cmt":"[승인] 04. Major PD 7건(IP 복부 아닌 부위 투여, 연구자 인지일 2025-03-25)","sd":"2025-04-14","ad":"2025-05-09","no":"4-2024-1472","vp":"2025-01-14 ~ 2026-01-13","docs":[],"_open":false,"result":"승인","cra_date":"2025-04-14","pi_date":"","receipt":"","approval":"2025-05-09","notify":"","resub":[]},{"id":"i146","site":"10","siteName":"연세의료원 세브란스병원","type":"변경승인","cmt":"[승인] 05. CRA 변경(이현경→김민지B)","sd":"2025-04-28","ad":"2025-05-12","no":"4-2024-1472","vp":"2025-01-14 ~ 2026-01-13","docs":[],"_open":false,"result":"승인","cra_date":"2025-04-28","pi_date":"","receipt":"","approval":"2025-05-12","notify":"","resub":[]},{"id":"i147","site":"10","siteName":"연세의료원 세브란스병원","type":"변경승인","cmt":"[승인] 06. PRT V3.0, 별첨2 V3.0, 보험증권, 별첨3/7 오기수정본 포함","sd":"2025-08-14","ad":"2025-09-19","no":"4-2024-1472","vp":"2025-01-14 ~ 2026-01-13","docs":[{"n":"연구계획서 (PRT)","m":"3","r":"","sv":"3"}],"_open":false,"result":"승인","cra_date":"2025-08-14","pi_date":"","receipt":"","approval":"2025-09-19","notify":"","resub":[]},{"id":"i148","site":"10","siteName":"연세의료원 세브란스병원","type":"안전성보고","cmt":"[승인] 07. 최신안전성정보보고(DSUR) V2.0, 타기관 SAE 1건","sd":"2025-11-04","ad":"2025-11-14","no":"4-2024-1472","vp":"2025-01-14 ~ 2026-01-13","docs":[],"_open":false,"result":"승인","cra_date":"2025-11-04","pi_date":"","receipt":"","approval":"2025-11-14","notify":"","resub":[]},{"id":"i149","site":"10","siteName":"연세의료원 세브란스병원","type":"변경승인","cmt":"[승인] 08. 연구비 변경(최종 연구비 정산), IB V4.0→V6.0","sd":"2025-11-05","ad":"2025-11-14","no":"4-2024-1472","vp":"2025-01-14 ~ 2026-01-13","docs":[{"n":"연구자 자료집 (IB)","m":"6","r":"","sv":"-"}],"_open":false,"result":"승인","cra_date":"2025-11-05","pi_date":"","receipt":"","approval":"2025-11-14","notify":"","resub":[]},{"id":"i150","site":"10","siteName":"연세의료원 세브란스병원","type":"위반보고","cmt":"[승인] 09. 위반보고(Minor PD 14건)","sd":"2025-11-11","ad":"2025-12-22","no":"4-2024-1472","vp":"2025-01-14 ~ 2026-01-13","docs":[],"_open":false,"result":"승인","cra_date":"2025-11-11","pi_date":"","receipt":"","approval":"2025-12-22","notify":"","resub":[]},{"id":"i151","site":"10","siteName":"연세의료원 세브란스병원","type":"종료보고","cmt":"[승인] 10. 종료보고","sd":"2025-11-27","ad":"2025-12-06","no":"4-2024-1472","vp":"2025-01-14 ~ 2026-01-13","docs":[],"_open":false,"result":"승인","cra_date":"2025-11-27","pi_date":"","receipt":"","approval":"2025-12-06","notify":"","resub":[]},{"id":"i152","site":"10","siteName":"연세의료원 세브란스병원","type":"변경승인","cmt":"[승인] 11. 연구진 변경(Sub-I 이민영 업무 종료)","sd":"2025-12-02","ad":"2025-12-12","no":"4-2024-1472","vp":"2025-01-14 ~ 2026-01-13","docs":[],"_open":false,"result":"승인","cra_date":"2025-12-02","pi_date":"","receipt":"","approval":"2025-12-12","notify":"","resub":[]},{"id":"i153","site":"10","siteName":"연세의료원 세브란스병원","type":"위반보고","cmt":"[승인] 12. 위반보고(Minor PD 2건)","sd":"2025-12-23","ad":"2026-01-01","no":"4-2024-1472","vp":"2025-01-14 ~ 2026-01-13","docs":[],"_open":false,"result":"승인","cra_date":"2025-12-23","pi_date":"","receipt":"","approval":"2026-01-01","notify":"","resub":[]},{"id":"i154","site":"11","siteName":"노원을지대학교병원","type":"초기심의 승인","cmt":"[승인] 01. Protocol Agreement V1.2, IND 승인서, 별첨류, 보험증권, 임상연구비실행예산편성내역서","sd":"2024-09-13","ad":"2024-10-07","no":"EMCS IRB 2024-09-013","vp":"2024-10-07 ~ 2025-10-06","docs":[{"n":"연구계획서 (PRT)","m":"1.2","r":"","sv":"1.2"},{"n":"동의서 (ICF)","m":"Main 1.2_1.0 인체유래물/임신정보 1.0_1.0","r":"","sv":"Main 1.2_1.0 인체유래물/임신정보 1.0_1.0"},{"n":"연구자 자료집 (IB)","m":"4.0","r":"","sv":"-"},{"n":"증례기록서 (CRF)","m":"1.0 (Paper CRF)","r":"","sv":"1.0 (Paper CRF)"}],"_open":false,"result":"승인","cra_date":"2024-09-13","pi_date":"","receipt":"","approval":"2024-10-07","notify":"","resub":[]},{"id":"i155","site":"11","siteName":"노원을지대학교병원","type":"변경승인","cmt":"[승인] 02. 대상자 수 변경(16→12명), PRT V2.1, 재동의면제사유서, 연구비","sd":"2024-11-18","ad":"2024-11-27","no":"EMCS IRB 2024-09-013","vp":"2024-10-07 ~ 2025-10-06","docs":[{"n":"연구계획서 (PRT)","m":"2.1","r":"","sv":"2.1"},{"n":"동의서 (ICF)","m":"Main 2.0_1.0 인체유래물/임신정보 2.0_1.0","r":"","sv":"Main 2.0_1.0 인체유래물/임신정보 2.0_1.0"},{"n":"증례기록서 (CRF)","m":"2.0 (Paper CRF) / 1.0 (Blank e","r":"","sv":"2.0 (Paper CRF) / 1.0 (Blank e"}],"_open":false,"result":"승인","cra_date":"2024-11-18","pi_date":"","receipt":"","approval":"2024-11-27","notify":"","resub":[]},{"id":"i156","site":"11","siteName":"노원을지대학교병원","type":"변경승인","cmt":"[승인] 03. 대상자 수 12→25명, 연구비","sd":"2024-11-28","ad":"2024-12-16","no":"EMCS IRB 2024-09-013","vp":"2024-10-07 ~ 2025-10-06","docs":[],"_open":false,"result":"승인","cra_date":"2024-11-28","pi_date":"","receipt":"","approval":"2024-12-16","notify":"","resub":[]},{"id":"i157","site":"11","siteName":"노원을지대학교병원","type":"변경승인","cmt":"[승인] 04. 연구진(CRC) 변경(8명 추가)","sd":"2025-01-16","ad":"2025-02-13","no":"EMCS IRB 2024-09-013","vp":"2024-10-07 ~ 2025-10-06","docs":[],"_open":false,"result":"승인","cra_date":"2025-01-16","pi_date":"","receipt":"","approval":"2025-02-13","notify":"","resub":[]},{"id":"i158","site":"11","siteName":"노원을지대학교병원","type":"위반보고","cmt":"[승인] 05. 위반보고: Major PD 1건(11S-007 Randomization 및 IP 처방/불출 오류)","sd":"2025-02-13","ad":"2025-03-04","no":"EMCS IRB 2024-09-013","vp":"2024-10-07 ~ 2025-10-06","docs":[],"_open":false,"result":"승인","cra_date":"2025-02-13","pi_date":"","receipt":"","approval":"2025-03-04","notify":"","resub":[]},{"id":"i159","site":"11","siteName":"노원을지대학교병원","type":"변경승인","cmt":"[승인] 06. PRT V2.2, eCRF V2.0, 별첨2 V3.0, 대상자 수 25→35명, CRA 이솔 추가, CRC 변경","sd":"2025-03-28","ad":"2025-04-18","no":"EMCS IRB 2024-09-013","vp":"2024-10-07 ~ 2025-10-06","docs":[{"n":"연구계획서 (PRT)","m":"2.2","r":"","sv":"2.2"},{"n":"동의서 (ICF)","m":"Main 2.1_1.0","r":"","sv":"Main 2.1_1.0"},{"n":"증례기록서 (CRF)","m":"2.0 (Blank eCRF)","r":"","sv":"2.0 (Blank eCRF)"}],"_open":false,"result":"승인","cra_date":"2025-03-28","pi_date":"","receipt":"","approval":"2025-04-18","notify":"","resub":[]},{"id":"i160","site":"11","siteName":"노원을지대학교병원","type":"변경승인","cmt":"[승인] 07. 대상자 수 35→45명, CRA 변경(김민지B→김유진/김민지)","sd":"2025-04-24","ad":"2025-05-12","no":"EMCS IRB 2024-09-013","vp":"2024-10-07 ~ 2025-10-06","docs":[],"_open":false,"result":"승인","cra_date":"2025-04-24","pi_date":"","receipt":"","approval":"2025-05-12","notify":"","resub":[]},{"id":"i161","site":"11","siteName":"노원을지대학교병원","type":"위반보고","cmt":"[승인] 08. 위반보고: Minor PD 4건, 지연보고 1건","sd":"2025-04-24","ad":"2025-05-12","no":"EMCS IRB 2024-09-013","vp":"2024-10-07 ~ 2025-10-06","docs":[],"_open":false,"result":"승인","cra_date":"2025-04-24","pi_date":"","receipt":"","approval":"2025-05-12","notify":"","resub":[]},{"id":"i162","site":"11","siteName":"노원을지대학교병원","type":"위반보고","cmt":"[승인] 09. 위반보고: Major PD 3건, Minor PD 4건","sd":"2025-06-05","ad":"2025-06-24","no":"EMCS IRB 2024-09-013","vp":"2024-10-07 ~ 2025-10-06","docs":[],"_open":false,"result":"승인","cra_date":"2025-06-05","pi_date":"","receipt":"","approval":"2025-06-24","notify":"","resub":[]},{"id":"i163","site":"11","siteName":"노원을지대학교병원","type":"변경승인","cmt":"[승인] 10. 연구진(CRC) 변경, 보험증권 변경","sd":"2025-06-12","ad":"2025-07-08","no":"EMCS IRB 2024-09-013","vp":"2024-10-07 ~ 2025-10-06","docs":[],"_open":false,"result":"승인","cra_date":"2025-06-12","pi_date":"","receipt":"","approval":"2025-07-08","notify":"","resub":[]},{"id":"i164","site":"11","siteName":"노원을지대학교병원","type":"위반보고","cmt":"[승인] 11. 위반보고: Major PD 2건","sd":"2025-06-17","ad":"2025-07-08","no":"EMCS IRB 2024-09-013","vp":"2024-10-07 ~ 2025-10-06","docs":[],"_open":false,"result":"승인","cra_date":"2025-06-17","pi_date":"","receipt":"","approval":"2025-07-08","notify":"","resub":[]},{"id":"i165","site":"11","siteName":"노원을지대학교병원","type":"변경승인","cmt":"[승인] 12. 연구진(CRC) 변경","sd":"2025-07-09","ad":"2025-08-04","no":"EMCS IRB 2024-09-013","vp":"2024-10-07 ~ 2025-10-06","docs":[],"_open":false,"result":"승인","cra_date":"2025-07-09","pi_date":"","receipt":"","approval":"2025-08-04","notify":"","resub":[]},{"id":"i166","site":"11","siteName":"노원을지대학교병원","type":"위반보고","cmt":"[승인] 13. 위반보고: Minor PD 1건","sd":"2025-07-29","ad":"2025-08-13","no":"EMCS IRB 2024-09-013","vp":"2024-10-07 ~ 2025-10-06","docs":[],"_open":false,"result":"승인","cra_date":"2025-07-29","pi_date":"","receipt":"","approval":"2025-08-13","notify":"","resub":[]},{"id":"i167","site":"11","siteName":"노원을지대학교병원","type":"변경승인","cmt":"[승인] 14. PRT V3.0, CRC 변경, 대상자 수 45→37명","sd":"2025-08-13","ad":"2025-09-09","no":"EMCS IRB 2024-09-013","vp":"2024-10-07 ~ 2025-10-06","docs":[{"n":"연구계획서 (PRT)","m":"3.0","r":"","sv":"3.0"}],"_open":false,"result":"승인","cra_date":"2025-08-13","pi_date":"","receipt":"","approval":"2025-09-09","notify":"","resub":[]},{"id":"i168","site":"11","siteName":"노원을지대학교병원","type":"안전성보고","cmt":"[승인] 15. 원내 SAE 보고서(11S-042)","sd":"2025-09-12","ad":"2025-09-30","no":"EMCS IRB 2024-09-013","vp":"2024-10-07 ~ 2025-10-06","docs":[],"_open":false,"result":"승인","cra_date":"2025-09-12","pi_date":"","receipt":"","approval":"2025-09-30","notify":"","resub":[]},{"id":"i169","site":"11","siteName":"노원을지대학교병원","type":"위반보고","cmt":"[승인] 16. 위반보고: Minor PD 1건","sd":"2025-09-25","ad":"2025-10-14","no":"EMCS IRB 2024-09-013","vp":"2024-10-07 ~ 2025-10-06","docs":[],"_open":false,"result":"승인","cra_date":"2025-09-25","pi_date":"","receipt":"","approval":"2025-10-14","notify":"","resub":[]},{"id":"i170","site":"11","siteName":"노원을지대학교병원","type":"안전성보고","cmt":"[승인] 17. 원내 SAE FU1 보고서(11S-042)","sd":"2025-09-30","ad":"2025-10-28","no":"EMCS IRB 2024-09-013","vp":"2024-10-07 ~ 2025-10-06","docs":[],"_open":false,"result":"승인","cra_date":"2025-09-30","pi_date":"","receipt":"","approval":"2025-10-28","notify":"","resub":[]},{"id":"i171","site":"11","siteName":"노원을지대학교병원","type":"변경승인","cmt":"[승인] 18. 연구진(CRC) 변경","sd":"2025-10-01","ad":"2025-10-20","no":"EMCS IRB 2024-09-013","vp":"2024-10-07 ~ 2025-10-06","docs":[],"_open":false,"result":"승인","cra_date":"2025-10-01","pi_date":"","receipt":"","approval":"2025-10-20","notify":"","resub":[]},{"id":"i172","site":"11","siteName":"노원을지대학교병원","type":"종료보고","cmt":"[승인] 19. 종료보고 점검리스트","sd":"2025-10-20","ad":"2025-11-11","no":"EMCS IRB 2024-09-013","vp":"2024-10-07 ~ 2025-10-06","docs":[],"_open":false,"result":"승인","cra_date":"2025-10-20","pi_date":"","receipt":"","approval":"2025-11-11","notify":"","resub":[]},{"id":"i173","site":"11","siteName":"노원을지대학교병원","type":"안전성보고","cmt":"[승인] 20. 최신안전성정보보고(DSUR) V2.0","sd":"2025-11-11","ad":"2025-11-27","no":"EMCS IRB 2024-09-013","vp":"2024-10-07 ~ 2025-10-06","docs":[],"_open":false,"result":"승인","cra_date":"2025-11-11","pi_date":"","receipt":"","approval":"2025-11-27","notify":"","resub":[]},{"id":"i174","site":"11","siteName":"노원을지대학교병원","type":"안전성보고","cmt":"[승인] 21. 원내 SAE FU2 보고서(11S-042)","sd":"2025-11-11","ad":"2025-11-27","no":"EMCS IRB 2024-09-013","vp":"2024-10-07 ~ 2025-10-06","docs":[],"_open":false,"result":"승인","cra_date":"2025-11-11","pi_date":"","receipt":"","approval":"2025-11-27","notify":"","resub":[]},{"id":"i175","site":"11","siteName":"노원을지대학교병원","type":"위반보고","cmt":"[승인] 22. 중대한 미준수 정정 보고(Major PD 2건 철회: 11S-012, 11S-021)","sd":"2025-11-12","ad":"2025-11-27","no":"EMCS IRB 2024-09-013","vp":"2024-10-07 ~ 2025-10-06","docs":[],"_open":false,"result":"승인","cra_date":"2025-11-12","pi_date":"","receipt":"","approval":"2025-11-27","notify":"","resub":[]},{"id":"i176","site":"11","siteName":"노원을지대학교병원","type":"변경승인","cmt":"[승인] 23. IB V4.0→V6.0, CRC 변경","sd":"2025-11-27","ad":"2025-12-12","no":"EMCS IRB 2024-09-013","vp":"2024-10-07 ~ 2025-10-06","docs":[{"n":"연구자 자료집 (IB)","m":"6.0","r":"","sv":"-"}],"_open":false,"result":"승인","cra_date":"2025-11-27","pi_date":"","receipt":"","approval":"2025-12-12","notify":"","resub":[]},{"id":"i177","site":"11","siteName":"노원을지대학교병원","type":"변경승인","cmt":"[승인] 24. 연구비 변경(최종 연구비 정산)","sd":"2025-12-12","ad":"2025-12-31","no":"EMCS IRB 2024-09-013","vp":"2024-10-07 ~ 2025-10-06","docs":[],"_open":false,"result":"승인","cra_date":"2025-12-12","pi_date":"","receipt":"","approval":"2025-12-31","notify":"","resub":[]},{"id":"i178","site":"11","siteName":"노원을지대학교병원","type":"변경승인","cmt":"[승인] 25. CRA 변경(김유진→이현아)","sd":"2026-03-16","ad":"2026-04-07","no":"EMCS IRB 2024-09-013","vp":"2024-10-07 ~ 2025-10-06","docs":[],"_open":false,"result":"승인","cra_date":"2026-03-16","pi_date":"","receipt":"","approval":"2026-04-07","notify":"","resub":[]},{"id":"i179","site":"12","siteName":"강북삼성병원","type":"초기심의 시정승인","cmt":"[시정승인] 01. Protocol Agreement V1.2, IND 승인서, 별첨류, 보험증권, 연구비, 이해상충보고서","sd":"2024-09-06","ad":"2024-09-25","no":"KBSMC IRB 2024-09-021","vp":"2024-11-20 ~ 2025-11-19","docs":[{"n":"연구계획서 (PRT)","m":"1.2","r":"","sv":"1.2"},{"n":"동의서 (ICF)","m":"Main 1.2_2.0 인체유래물 1.0_1.1 임신정보 1.0_1.1","r":"","sv":"Main 1.2_2.0 인체유래물 1.0_1.1 임신정보 1.0_1.1"},{"n":"연구자 자료집 (IB)","m":"4.0","r":"","sv":"-"},{"n":"증례기록서 (CRF)","m":"1.0 (Paper CRF)","r":"","sv":"1.0 (Paper CRF)"}],"_open":false,"result":"승인","cra_date":"2024-09-06","pi_date":"","receipt":"","approval":"2024-09-25","notify":"","resub":[]},{"id":"i180","site":"12","siteName":"강북삼성병원","type":"변경승인","cmt":"[승인] 02. 대상자 수 변경, PRT V2.1, 연구비, 심의의견 답변서","sd":"2024-10-28","ad":"2024-11-20","no":"KBSMC IRB 2024-09-021","vp":"2024-11-20 ~ 2025-11-19","docs":[{"n":"연구계획서 (PRT)","m":"2.1","r":"","sv":"2.1"},{"n":"동의서 (ICF)","m":"Main 2.0_2.0 인체유래물/임신정보 2.0_1.0","r":"","sv":"Main 2.0_2.0 인체유래물/임신정보 2.0_1.0"},{"n":"증례기록서 (CRF)","m":"1.0 (Blank eCRF)","r":"","sv":"1.0 (Blank eCRF)"}],"_open":false,"result":"승인","cra_date":"2024-10-28","pi_date":"","receipt":"","approval":"2024-11-20","notify":"","resub":[]},{"id":"i181","site":"12","siteName":"강북삼성병원","type":"변경승인","cmt":"[승인] 03. Protocol Agreement V2.1-2, PRT 변경대비표, ICF 변경대비표","sd":"2024-12-19","ad":"2024-12-26","no":"KBSMC IRB 2024-09-021","vp":"2024-11-20 ~ 2025-11-19","docs":[{"n":"연구계획서 (PRT)","m":"2.1-2","r":"","sv":"2.1-2"},{"n":"동의서 (ICF)","m":"Main 2.0_2.1","r":"","sv":"Main 2.0_2.1"}],"_open":false,"result":"승인","cra_date":"2024-12-19","pi_date":"","receipt":"","approval":"2024-12-26","notify":"","resub":[]},{"id":"i182","site":"12","siteName":"강북삼성병원","type":"변경승인","cmt":"[승인] 04. 연구비 변경(박지선 PM 추가), 연구비 산정내역서","sd":"2025-02-12","ad":"2025-02-18","no":"KBSMC IRB 2024-09-021","vp":"2024-11-20 ~ 2025-11-19","docs":[],"_open":false,"result":"승인","cra_date":"2025-02-12","pi_date":"","receipt":"","approval":"2025-02-18","notify":"","resub":[]},{"id":"i183","site":"12","siteName":"강북삼성병원","type":"변경승인","cmt":"[승인] 05. PRT V2.2, eCRF V2.0, 별첨2 V3.0, CRC 변경, CRA 이솔 추가","sd":"2025-03-20","ad":"2025-04-07","no":"KBSMC IRB 2024-09-021","vp":"2024-11-20 ~ 2025-11-19","docs":[{"n":"연구계획서 (PRT)","m":"2.2","r":"","sv":"2.2"},{"n":"동의서 (ICF)","m":"Main 2.1_1.0","r":"","sv":"Main 2.1_1.0"},{"n":"증례기록서 (CRF)","m":"2.0 (Blank eCRF)","r":"","sv":"2.0 (Blank eCRF)"}],"_open":false,"result":"승인","cra_date":"2025-03-20","pi_date":"","receipt":"","approval":"2025-04-07","notify":"","resub":[]},{"id":"i184","site":"12","siteName":"강북삼성병원","type":"변경승인","cmt":"[승인] 06. 대상자 수 12→9명, PRT V3.0, 보험증권, 연구비","sd":"2025-08-06","ad":"2025-08-18","no":"KBSMC IRB 2024-09-021","vp":"2024-11-20 ~ 2025-11-19","docs":[{"n":"연구계획서 (PRT)","m":"3","r":"","sv":"3"}],"_open":false,"result":"승인","cra_date":"2025-08-06","pi_date":"","receipt":"","approval":"2025-08-18","notify":"","resub":[]},{"id":"i185","site":"12","siteName":"강북삼성병원","type":"변경승인","cmt":"[승인] 07. IB V4.0→V6.0","sd":"2025-10-16","ad":"2025-11-06","no":"KBSMC IRB 2024-09-021","vp":"2024-11-20 ~ 2025-11-19","docs":[{"n":"연구자 자료집 (IB)","m":"6.0","r":"","sv":"-"}],"_open":false,"result":"승인","cra_date":"2025-10-16","pi_date":"","receipt":"","approval":"2025-11-06","notify":"","resub":[]},{"id":"i186","site":"12","siteName":"강북삼성병원","type":"안전성보고","cmt":"[승인] 08. 최신안전성정보보고(DSUR) V2.0","sd":"2025-10-16","ad":"2025-11-06","no":"KBSMC IRB 2024-09-021","vp":"2024-11-20 ~ 2025-11-19","docs":[],"_open":false,"result":"승인","cra_date":"2025-10-16","pi_date":"","receipt":"","approval":"2025-11-06","notify":"","resub":[]},{"id":"i187","site":"12","siteName":"강북삼성병원","type":"변경승인","cmt":"[승인] 09. 이해상충보고서(변혜영 CRC 삭제)","sd":"2025-11-11","ad":"2025-11-13","no":"KBSMC IRB 2024-09-021","vp":"2024-11-20 ~ 2025-11-19","docs":[],"_open":false,"result":"승인","cra_date":"2025-11-11","pi_date":"","receipt":"","approval":"2025-11-13","notify":"","resub":[]},{"id":"i188","site":"12","siteName":"강북삼성병원","type":"종료보고","cmt":"[승인] 10. 종료보고서, 등록 현황표, PRT/ICF 이력, 미준수 사례(Minor PD 1건), DSUR","sd":"2025-11-07","ad":"2025-11-24","no":"KBSMC IRB 2024-09-021","vp":"2024-11-20 ~ 2025-11-19","docs":[],"_open":false,"result":"승인","cra_date":"2025-11-07","pi_date":"","receipt":"","approval":"2025-11-24","notify":"","resub":[]},{"id":"i189","site":"12","siteName":"강북삼성병원","type":"변경승인","cmt":"[승인] 11. CRA 변경(이수현→이현아)","sd":"2026-02-27","ad":"2026-03-03","no":"KBSMC IRB 2024-09-021","vp":"2024-11-20 ~ 2025-11-19","docs":[],"_open":false,"result":"승인","cra_date":"2026-02-27","pi_date":"","receipt":"","approval":"2026-03-03","notify":"","resub":[]},{"id":"i190","site":"13","siteName":"가톨릭대학교 여의도성모병원","type":"초기심의 승인","cmt":"[보완] 01. IND 승인서, 별첨류, 보험증권, 모집공고, CGM 설명문","sd":"2024-10-02","ad":"2024-10-28","no":"SC24MDDS0107","vp":"2025-01-21 ~ 2026-01-20","docs":[{"n":"연구계획서 (PRT)","m":"2.1","r":"","sv":"2.1"},{"n":"동의서 (ICF)","m":"Main ICF 2.0_1.0 인체유래물/임신정보 2.0_1.0","r":"","sv":"Main ICF 2.0_1.0 인체유래물/임신정보 2.0_1.0"},{"n":"연구자 자료집 (IB)","m":"4.0","r":"","sv":"-"},{"n":"증례기록서 (CRF)","m":"2.0 (Paper CRF)","r":"","sv":"2.0 (Paper CRF)"}],"_open":false,"result":"승인","cra_date":"2024-10-02","pi_date":"","receipt":"","approval":"2024-10-28","notify":"","resub":[]},{"id":"i191","site":"13","siteName":"가톨릭대학교 여의도성모병원","type":"변경승인","cmt":"[시정승인] 02. Protocol Agreement V2.1, PRT/ICF 변경대비표, IP 눈가림 절차, 취약피험자 보호대책 V2.1","sd":"2024-11-14","ad":"2024-12-23","no":"SC24MDDS0107","vp":"2025-01-21 ~ 2026-01-20","docs":[{"n":"연구계획서 (PRT)","m":"2.1-1","r":"","sv":"2.1-1"},{"n":"동의서 (ICF)","m":"Main ICF 2.0_2.1 인체유래물 2.0_1.1","r":"","sv":"Main ICF 2.0_2.1 인체유래물 2.0_1.1"}],"_open":false,"result":"승인","cra_date":"2024-11-14","pi_date":"","receipt":"","approval":"2024-12-23","notify":"","resub":[]},{"id":"i192","site":"13","siteName":"가톨릭대학교 여의도성모병원","type":"변경승인","cmt":"[승인] 03. PRT V2.1-1→V2.1-3 변경대비표, Protocol Agreement V2.1-3","sd":"2025-01-13","ad":"2025-01-21","no":"SC24MDDS0107","vp":"2025-01-21 ~ 2026-01-20","docs":[{"n":"연구계획서 (PRT)","m":"2.1-3","r":"","sv":"2.1-3"},{"n":"증례기록서 (CRF)","m":"1.0 (Blank eCRF)","r":"","sv":"1.0 (Blank eCRF)"}],"_open":false,"result":"승인","cra_date":"2025-01-13","pi_date":"","receipt":"","approval":"2025-01-21","notify":"","resub":[]},{"id":"i193","site":"13","siteName":"가톨릭대학교 여의도성모병원","type":"변경승인","cmt":"[승인] 04. 연구비 변경 신청서","sd":"2025-06-04","ad":"2025-06-17","no":"SC24MDDS0107","vp":"2025-01-21 ~ 2026-01-20","docs":[],"_open":false,"result":"승인","cra_date":"2025-06-04","pi_date":"","receipt":"","approval":"2025-06-17","notify":"","resub":[]},{"id":"i194","site":"13","siteName":"가톨릭대학교 여의도성모병원","type":"종료보고","cmt":"[승인] 05. 종료보고서","sd":"2025-06-04","ad":"2025-06-17","no":"SC24MDDS0107","vp":"2025-01-21 ~ 2026-01-20","docs":[],"_open":false,"result":"승인","cra_date":"2025-06-04","pi_date":"","receipt":"","approval":"2025-06-17","notify":"","resub":[]},{"id":"i195","site":"14","siteName":"강동경희대학교병원","type":"초기심의 시정승인","cmt":"[시정승인] 01. Protocol Agreement V2.1, IND 승인서, 별첨류, 보험증권, 모집공고, 연구비산정내역서","sd":"2024-10-22","ad":"2024-11-11","no":"2024-10-023","vp":"2024-12-18 ~ 2025-12-17","docs":[{"n":"연구계획서 (PRT)","m":"2.1","r":"","sv":"2.1"},{"n":"동의서 (ICF)","m":"Main 2.0_1.0 인체유래물/임신정보 2.0_1.0","r":"","sv":"Main 2.0_1.0 인체유래물/임신정보 2.0_1.0"},{"n":"연구자 자료집 (IB)","m":"4.0","r":"","sv":"-"},{"n":"증례기록서 (CRF)","m":"1.0 (Blank eCRF)","r":"","sv":"1.0 (Blank eCRF)"}],"_open":false,"result":"승인","cra_date":"2024-10-22","pi_date":"","receipt":"","approval":"2024-11-11","notify":"","resub":[]},{"id":"i196","site":"14","siteName":"강동경희대학교병원","type":"변경승인","cmt":"[승인] 02. 시정승인에 대한 답변서, IP 눈가림 유지 및 조제투약 관련 절차","sd":"2024-12-02","ad":"2024-12-18","no":"2024-10-023","vp":"2024-12-18 ~ 2025-12-17","docs":[],"_open":false,"result":"승인","cra_date":"2024-12-02","pi_date":"","receipt":"","approval":"2024-12-18","notify":"","resub":[]},{"id":"i197","site":"14","siteName":"강동경희대학교병원","type":"변경승인","cmt":"[승인] 03. 연구담당자 이정화 삭제/박수연 추가, 공동연구자 유현진 추가","sd":"2025-02-05","ad":"2025-02-18","no":"2024-10-023","vp":"2024-12-18 ~ 2025-12-17","docs":[],"_open":false,"result":"승인","cra_date":"2025-02-05","pi_date":"","receipt":"","approval":"2025-02-18","notify":"","resub":[]},{"id":"i198","site":"14","siteName":"강동경희대학교병원","type":"변경승인","cmt":"[승인] 04. PRT V2.2, eCRF V2.0, 별첨2 V3.0, 고대안산 시험자 변경, CRA 이솔 추가","sd":"2025-03-26","ad":"2025-05-12","no":"2024-10-023","vp":"2024-12-18 ~ 2025-12-17","docs":[{"n":"연구계획서 (PRT)","m":"2.2","r":"","sv":"2.2"},{"n":"동의서 (ICF)","m":"Main 2.1_1.0","r":"","sv":"Main 2.1_1.0"},{"n":"증례기록서 (CRF)","m":"2.0 (Blank eCRF)","r":"","sv":"2.0 (Blank eCRF)"}],"_open":false,"result":"승인","cra_date":"2025-03-26","pi_date":"","receipt":"","approval":"2025-05-12","notify":"","resub":[]},{"id":"i199","site":"14","siteName":"강동경희대학교병원","type":"변경승인","cmt":"[승인] 05. 연구담당자 변경(박수연→김효경), 보험증권 변경","sd":"2025-06-10","ad":"2025-06-30","no":"2024-10-023","vp":"2024-12-18 ~ 2025-12-17","docs":[],"_open":false,"result":"승인","cra_date":"2025-06-10","pi_date":"","receipt":"","approval":"2025-06-30","notify":"","resub":[]},{"id":"i200","site":"14","siteName":"강동경희대학교병원","type":"위반보고","cmt":"[승인] 06. 위반보고: Minor PD 2건","sd":"2025-07-28","ad":"2025-08-11","no":"2024-10-023","vp":"2024-12-18 ~ 2025-12-17","docs":[],"_open":false,"result":"승인","cra_date":"2025-07-28","pi_date":"","receipt":"","approval":"2025-08-11","notify":"","resub":[]},{"id":"i201","site":"14","siteName":"강동경희대학교병원","type":"변경승인","cmt":"[승인] 07. PRT V3.0, 별첨2 V3.0, 대상자 수 12→1명, IND 승인서","sd":"2025-08-20","ad":"2025-09-08","no":"2024-10-023","vp":"2024-12-18 ~ 2025-12-17","docs":[{"n":"연구계획서 (PRT)","m":"3.0","r":"","sv":"3.0"}],"_open":false,"result":"승인","cra_date":"2025-08-20","pi_date":"","receipt":"","approval":"2025-09-08","notify":"","resub":[]},{"id":"i202","site":"14","siteName":"강동경희대학교병원","type":"종료보고","cmt":"[승인] 08. 종료보고: 연구과제점검표, 다기관 현황표","sd":"2025-09-10","ad":"2025-10-14","no":"2024-10-023","vp":"2024-12-18 ~ 2025-12-17","docs":[],"_open":false,"result":"승인","cra_date":"2025-09-10","pi_date":"","receipt":"","approval":"2025-10-14","notify":"","resub":[]},{"id":"i203","site":"14","siteName":"강동경희대학교병원","type":"변경승인","cmt":"[승인] 09. 연구비 변경(최종 연구비 정산)","sd":"2025-09-19","ad":"2025-10-10","no":"2024-10-023","vp":"2024-12-18 ~ 2025-12-17","docs":[],"_open":false,"result":"승인","cra_date":"2025-09-19","pi_date":"","receipt":"","approval":"2025-10-10","notify":"","resub":[]},{"id":"i204","site":"14","siteName":"강동경희대학교병원","type":"변경승인","cmt":"[승인] 10. CRA 변경(김유진→이현아)","sd":"2026-03-16","ad":"2026-03-30","no":"2024-10-023","vp":"2024-12-18 ~ 2025-12-17","docs":[],"_open":false,"result":"승인","cra_date":"2026-03-16","pi_date":"","receipt":"","approval":"2026-03-30","notify":"","resub":[]}];
+const DEFAULT_STUDY={protocol:"PG-102-P2-01",sponsor:"㈜프로젠",cra:"",sites:"14개 기관",title:""};
+
+let DATA=[],STUDY={},eid=null,did=null,filtered=[];
+
+function sdata(){
+  try{
+    localStorage.setItem("irb_pg102_v2",JSON.stringify(DATA));
+    localStorage.setItem("irb_pg102_study",JSON.stringify(STUDY));
+  }catch(e){}
+}
+function ldata(){
+  try{
+    const d=localStorage.getItem("irb_pg102_v2");
+    const s=localStorage.getItem("irb_pg102_study");
+    if(d) DATA=JSON.parse(d); else DATA=JSON.parse(JSON.stringify(INIT));
+    if(s) STUDY=JSON.parse(s); else STUDY={...DEFAULT_STUDY};
+  }catch(e){DATA=JSON.parse(JSON.stringify(INIT));STUDY={...DEFAULT_STUDY};}
+}
+
+function pill(v,m){
+  if(!v||v==="-"||!String(v).trim()) return '<span style="color:#ddd;font-size:11px">-</span>';
+  return m?`<span class="pill" style="background:#dbeafe;color:#1d4ed8">${v}</span>`
+          :`<span class="pill" style="background:#dcfce7;color:#166534">${v}</span>`;
+}
+function resBadge(r){
+  if(!r) return "";
+  const c=RC[r]||{bg:"#f0f0ec",color:"#666"};
+  return `<span class="result-badge" style="background:${c.bg};color:${c.color}">${r}</span>`;
+}
+
+function applyFilter(){
+  const site=document.getElementById("fsite").value;
+  const type=document.getElementById("ftype").value;
+  const res=document.getElementById("fresult").value;
+  const kw=document.getElementById("fsearch").value.toLowerCase();
+  filtered=DATA.filter(s=>{
+    if(site && s.site!==site) return false;
+    if(type && s.type!==type) return false;
+    if(res && s.result!==res) return false;
+    if(kw && !JSON.stringify(s).toLowerCase().includes(kw)) return false;
+    return true;
+  });
+  document.getElementById("fcnt").textContent=`${filtered.length}건`;
+  document.getElementById("fc").textContent=filtered.length;
+  renderList();
+}
+
+function updateStudyUI(){
+  const tag=document.getElementById("protocol-tag");
+  const sub=document.getElementById("study-sub");
+  if(STUDY.protocol) tag.textContent=STUDY.protocol+" ✏️";
+  const parts=[STUDY.sponsor,STUDY.sites,STUDY.cra].filter(Boolean).join(" · ");
+  sub.textContent=parts||STUDY.title||"연구 정보를 입력해주세요";
+}
+
+function render(){
+  sdata();
+  document.getElementById("sc").textContent=DATA.length;
+  document.getElementById("dc").textContent=DATA.reduce((a,s)=>a+(s.docs||[]).length,0);
+  updateStudyUI();
+  applyFilter();
+}
+
+function renderList(){
+  const el=document.getElementById("list");
+  if(!filtered.length){
+    el.innerHTML='<div class="empty">조건에 맞는 제출 건이 없어요</div>';
+    return;
+  }
+  el.innerHTML=filtered.map((s,i)=>{
+    const c=TC[s.type]||TC["종료보고"];
+    const open=s._open===true;
+    const docs=s.docs||[];
+    const rows=docs.map(d=>`<tr>
+      <td style="font-weight:500;color:#333">${d.n||"-"}</td>
+      <td>${pill(d.m,true)}</td>
+      <td>${pill(d.sv||d.s,false)}</td>
+      <td style="color:#999;font-size:11px">${d.r||"-"}</td>
+    </tr>`).join("");
+    const stag=SITE_MAP[s.site]||s.siteName||s.site||"";
+    const resubHtml=(s.resub||[]).filter(Boolean).map(r=>`<span class="resub-tag">🔄 재제출 ${r}</span>`).join("");
+    const displayDate=s.cra_date||s.sd||"";
+    const displayApproval=s.approval||s.ad||"";
+    return `<div class="card" style="border-left-color:${c.b}">
+      <div class="card-head${open?" open":""}" onclick="tog('${s.id}',event)">
+        <span class="num">${String(i+1).padStart(2,"0")}</span>
+        <span class="badge" style="background:${c.bg};color:${c.color};border-color:${c.b}">${s.type}</span>
+        ${s.result?resBadge(s.result):""}
+        ${stag?`<span class="site-tag">${stag}</span>`:""}
+        <div class="meta">
+          ${displayDate?`<span class="mi">📤 ${displayDate}</span>`:""}
+          ${displayApproval?`<span class="mi">✅ ${displayApproval}</span>`:""}
+          ${s.no?`<span class="mno">${s.no}</span>`:""}
+        </div>
+        <span class="dcnt">문서 ${docs.length}건</span>
+        <div class="acts" onclick="event.stopPropagation()">
+          <button class="abtn" onclick="openModal('${s.id}')">✏️ 수정</button>
+          <button class="abtn red" onclick="askDel('${s.id}')">🗑 삭제</button>
+        </div>
+        <span class="chev${open?" open":""}">▾</span>
+      </div>
+      <div class="card-body${open?" open":""}" id="b${s.id}">
+        <div class="detail-grid">
+          <div class="detail-item"><div class="detail-label">CRA 제출일</div><div class="detail-value">${s.cra_date||s.sd||"-"}</div></div>
+          <div class="detail-item"><div class="detail-label">PI 제출일</div><div class="detail-value">${s.pi_date||"-"}</div></div>
+          <div class="detail-item"><div class="detail-label">IRB 접수일</div><div class="detail-value">${s.receipt||"-"}</div></div>
+          <div class="detail-item"><div class="detail-label">심의일</div><div class="detail-value">${s.approval||s.ad||"-"}</div></div>
+          <div class="detail-item"><div class="detail-label">통지일</div><div class="detail-value">${s.notify||"-"}</div></div>
+          <div class="detail-item"><div class="detail-label">유효기간</div><div class="detail-value">${s.vp||"-"}</div></div>
+        </div>
+        ${resubHtml?`<div style="margin:4px 0 6px">${resubHtml}</div>`:""}
+        ${s.cmt?`<div class="comment-box"><div class="cml">💬 코멘트</div>${s.cmt.replace(/\n/g,"<br>")}</div>`:""}
+        <div class="ver-hint">
+          <span><span class="vdot" style="background:#dbeafe;border-color:#93c5fd"></span>Master Ver</span>
+          <span><span class="vdot" style="background:#dcfce7;border-color:#86efac"></span>Site Ver</span>
+        </div>
+        ${docs.length?`<table><thead><tr><th>문서명</th><th>Master Ver</th><th>Site Ver</th><th>비고</th></tr></thead><tbody>${rows}</tbody></table>`
+          :`<div class="no-doc">등록된 문서가 없어요</div>`}
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function tog(id){
+  const s=DATA.find(x=>x.id===id); if(!s) return;
+  s._open=!s._open;
+  const body=document.getElementById("b"+id);
+  const head=body.previousElementSibling;
+  body.classList.toggle("open",s._open);
+  head.classList.toggle("open",s._open);
+  head.querySelector(".chev").classList.toggle("open",s._open);
+}
+
+function openModal(id){
+  eid=id||null;
+  document.getElementById("mtitle").textContent=id?"제출 건 수정":"새 제출 건 추가";
+  document.getElementById("f-docs").innerHTML="";
+  document.getElementById("f-resub-wrap").innerHTML="";
+  if(id){
+    const s=DATA.find(x=>x.id===id);
+    document.getElementById("f-site").value=s.site||"";
+    document.getElementById("f-site-custom").value="";
+    document.getElementById("f-type").value=s.type||"변경승인";
+    document.getElementById("f-result").value=s.result||"";
+    document.getElementById("f-no").value=s.no||"";
+    document.getElementById("f-vp").value=s.vp||"";
+    document.getElementById("f-cra").value=s.cra_date||s.sd||"";
+    document.getElementById("f-pi").value=s.pi_date||"";
+    document.getElementById("f-receipt").value=s.receipt||"";
+    document.getElementById("f-approval").value=s.approval||s.ad||"";
+    document.getElementById("f-notify").value=s.notify||"";
+    document.getElementById("f-cmt").value=s.cmt||"";
+    (s.resub||[]).forEach(r=>addResubRow(r));
+    (s.docs||[]).forEach(d=>addDocRow(d));
+  } else {
+    const fs=document.getElementById("fsite").value;
+    document.getElementById("f-site").value=fs||"";
+    document.getElementById("f-site-custom").value="";
+    document.getElementById("f-type").value="변경승인";
+    document.getElementById("f-result").value="";
+    ["f-no","f-vp","f-cmt"].forEach(f=>document.getElementById(f).value="");
+    ["f-cra","f-pi","f-receipt","f-approval","f-notify"].forEach(f=>document.getElementById(f).value="");
+    addDocRow();
+  }
+  document.getElementById("dim").classList.add("on");
+}
+function closeModal(){document.getElementById("dim").classList.remove("on");eid=null;}
+
+function addResubRow(val){
+  const wrap=document.getElementById("f-resub-wrap");
+  const div=document.createElement("div");
+  div.className="resub-row";
+  div.innerHTML=`<input type="date" class="resub-date" value="${val||""}">
+    <button class="del-resub" onclick="this.parentNode.remove()">✕</button>`;
+  wrap.appendChild(div);
+}
+
+function addDocRow(d){
+  d=d||{n:"",m:"",sv:"",r:""};
+  const el=document.getElementById("f-docs");
+  const div=document.createElement("div");
+  div.className="doc-row";
+  div.innerHTML=`
+    <input class="si dn" type="text" value="${d.n||""}" placeholder="예: 연구계획서">
+    <input class="si dm" type="text" value="${d.m||""}" placeholder="Master">
+    <input class="si ds" type="text" value="${d.sv||d.s||""}" placeholder="Site">
+    <input class="si dr" type="text" value="${d.r||""}" placeholder="비고">
+    <button class="del-r" onclick="this.parentNode.remove()">✕</button>`;
+  el.appendChild(div);
+}
+
+function saveSub(){
+  const no=document.getElementById("f-no").value.trim();
+  const cra=document.getElementById("f-cra").value;
+  if(!no&&!cra){alert("CRA 제출일 또는 승인번호 중 하나는 입력해주세요.");return;}
+  const siteVal=document.getElementById("f-site").value;
+  const siteCustom=document.getElementById("f-site-custom").value.trim();
+  const siteName=siteCustom||SITE_NAMES[siteVal]||"";
+  const resub=[...document.querySelectorAll(".resub-date")].map(i=>i.value).filter(Boolean);
+  const docs=[...document.getElementById("f-docs").querySelectorAll(".doc-row")].map(r=>({
+    n:r.querySelector(".dn").value.trim(),
+    m:r.querySelector(".dm").value.trim()||"-",
+    sv:r.querySelector(".ds").value.trim()||"-",
+    r:r.querySelector(".dr").value.trim(),
+  })).filter(d=>d.n);
+  const entry={
+    site:siteVal||"",siteName,
+    type:document.getElementById("f-type").value,
+    result:document.getElementById("f-result").value,
+    no,vp:document.getElementById("f-vp").value.trim(),
+    cra_date:cra, pi_date:document.getElementById("f-pi").value,
+    receipt:document.getElementById("f-receipt").value,
+    approval:document.getElementById("f-approval").value,
+    notify:document.getElementById("f-notify").value,
+    resub, cmt:document.getElementById("f-cmt").value.trim(),
+    docs, _open:true,
+  };
+  if(eid){const i=DATA.findIndex(x=>x.id===eid);DATA[i]={...DATA[i],...entry};}
+  else DATA.push({id:"i"+Date.now(),...entry});
+  closeModal();render();
+}
+
+function askDel(id){did=id;document.getElementById("cdim").classList.add("on")}
+function doDelete(){DATA=DATA.filter(x=>x.id!==did);document.getElementById("cdim").classList.remove("on");did=null;render();}
+
+function openStudyModal(){
+  document.getElementById("s-protocol").value=STUDY.protocol||"";
+  document.getElementById("s-sponsor").value=STUDY.sponsor||"";
+  document.getElementById("s-cra").value=STUDY.cra||"";
+  document.getElementById("s-sites").value=STUDY.sites||"";
+  document.getElementById("s-title").value=STUDY.title||"";
+  document.getElementById("study-dim").classList.add("on");
+}
+function saveStudy(){
+  STUDY={
+    protocol:document.getElementById("s-protocol").value.trim(),
+    sponsor:document.getElementById("s-sponsor").value.trim(),
+    cra:document.getElementById("s-cra").value.trim(),
+    sites:document.getElementById("s-sites").value.trim(),
+    title:document.getElementById("s-title").value.trim(),
+  };
+  document.getElementById("study-dim").classList.remove("on");
+  render();
+}
+
+document.getElementById("dim").addEventListener("click",function(e){if(e.target===this)closeModal()});
+document.getElementById("cdim").addEventListener("click",function(e){if(e.target===this)this.classList.remove("on")});
+document.getElementById("study-dim").addEventListener("click",function(e){if(e.target===this)this.classList.remove("on")});
+
+ldata();render();
+</script>
+</body>
+</html>
