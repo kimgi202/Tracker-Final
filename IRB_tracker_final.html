@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IRB 변경 이력 트래커</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Apple SD Gothic Neo',sans-serif;
+  background:#f6f6f4;color:#1a1a1a;padding:20px;font-size:14px;line-height:1.6;min-height:100vh}
+
+/* 상단 */
+.top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px}
+.title-wrap{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.title{font-size:17px;font-weight:700;letter-spacing:-.3px}
+.protocol-tag{font-size:12px;background:#1a1a1a;color:#fff;border-radius:6px;padding:2px 10px;cursor:pointer;white-space:nowrap}
+.protocol-tag:hover{background:#333}
+.title-sub{font-size:11px;color:#aaa;margin-top:2px}
+.stats{display:flex;gap:8px;flex-wrap:wrap}
+.stat{background:#fff;border:1px solid #ebebeb;border-radius:8px;padding:6px 14px;text-align:center;min-width:60px}
+.stat-n{font-size:18px;font-weight:700}
+.stat-l{font-size:10px;color:#aaa}
+
+/* 범례 */
+.legend{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;font-size:11px;color:#888;align-items:center}
+.ldot{width:7px;height:7px;border-radius:2px;display:inline-block;margin-right:3px;vertical-align:middle}
+.vdot{width:9px;height:9px;border-radius:2px;display:inline-block;margin-right:3px;vertical-align:middle;border:1px solid}
+.lsep{width:1px;height:11px;background:#e0e0e0;margin:0 2px}
+
+/* 필터 */
+.filter-bar{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
+.fsel{font-size:12px;padding:5px 9px;border:1px solid #e0e0e0;border-radius:7px;background:#fff;color:#1a1a1a;outline:none;cursor:pointer}
+.fsel:focus{border-color:#888}
+.fsearch{font-size:12px;padding:5px 9px;border:1px solid #e0e0e0;border-radius:7px;background:#fff;color:#1a1a1a;outline:none;flex:1;min-width:120px;max-width:220px}
+.fsearch:focus{border-color:#888}
+.fcnt{font-size:11px;color:#aaa;white-space:nowrap}
+
+/* 카드 */
+.empty{text-align:center;padding:40px;color:#ccc;font-size:13px;border:1px dashed #e0e0e0;border-radius:10px;background:#fff;margin-bottom:10px}
+.card{background:#fff;border:1px solid #ebebeb;border-left:4px solid #ccc;border-radius:0 10px 10px 0;margin-bottom:8px;overflow:hidden}
+.card-head{display:flex;align-items:center;gap:8px;padding:10px 13px;cursor:pointer;user-select:none;flex-wrap:nowrap}
+.card-head:hover{background:#fafaf8}
+.card-head.open{background:#f5f5f2}
+.num{font-size:11px;color:#ccc;font-weight:700;min-width:18px;flex-shrink:0}
+.badge{border-radius:5px;padding:1px 8px;font-size:11px;font-weight:600;white-space:nowrap;border:1px solid transparent;flex-shrink:0}
+.result-badge{border-radius:4px;padding:1px 7px;font-size:11px;font-weight:600;white-space:nowrap;flex-shrink:0}
+.site-tag{font-size:11px;background:#f0f0ec;color:#888;border-radius:5px;padding:1px 7px;white-space:nowrap;flex-shrink:0;max-width:120px;overflow:hidden;text-overflow:ellipsis}
+.meta{flex:1;display:flex;gap:8px;flex-wrap:wrap;align-items:center;min-width:0;overflow:hidden}
+.mi{font-size:11px;color:#999;white-space:nowrap}
+.mno{font-size:11px;font-weight:600;color:#333;white-space:nowrap}
+.dcnt{font-size:10px;background:#f0f0ec;color:#aaa;border-radius:8px;padding:1px 7px;white-space:nowrap;flex-shrink:0}
+.acts{display:flex;gap:3px;align-items:center;flex-shrink:0}
+.abtn{background:none;border:1px solid #e8e8e8;border-radius:5px;cursor:pointer;padding:2px 8px;font-size:11px;color:#888;transition:all .15s;white-space:nowrap}
+.abtn:hover{background:#f5f5f2;color:#333;border-color:#ccc}
+.abtn.red:hover{background:#fff5f5;color:#dc2626;border-color:#fca5a5}
+.chev{font-size:10px;color:#ccc;transition:transform .2s;flex-shrink:0}
+.chev.open{transform:rotate(180deg)}
+.card-body{display:none;padding:0 13px 12px;border-top:1px solid #f5f5f2}
+.card-body.open{display:block}
+
+/* 카드 바디 상세 */
+.detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:6px;margin:10px 0 8px}
+.detail-item{display:flex;flex-direction:column;gap:2px}
+.detail-label{font-size:10px;color:#bbb;font-weight:600;letter-spacing:.3px;text-transform:uppercase}
+.detail-value{font-size:12px;color:#444}
+.resub-tag{display:inline-block;background:#fef3c7;color:#92400e;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:500;margin-top:2px}
+.comment-box{margin:6px 0;padding:8px 10px;background:#fafaf8;border-radius:7px;border:1px solid #f0f0ec;font-size:12px;color:#555;line-height:1.6}
+.cml{font-size:10px;color:#bbb;font-weight:600;letter-spacing:.3px;text-transform:uppercase;margin-bottom:3px}
+.ver-hint{display:flex;gap:12px;padding:6px 0 4px;font-size:11px;color:#aaa}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{padding:5px 9px;text-align:left;font-weight:500;color:#bbb;font-size:11px;border-bottom:1px solid #f0f0ec;background:#fafaf9}
+td{padding:6px 9px;border-bottom:1px solid #f5f5f2;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#fafaf8}
+.pill{border-radius:4px;padding:1px 8px;font-size:11px;font-weight:600;display:inline-block}
+.no-doc{font-size:12px;color:#ddd;padding:8px 0}
+
+/* 추가 버튼 */
+.add-main{width:100%;padding:10px;font-size:13px;color:#aaa;border:1px dashed #ddd;border-radius:10px;background:transparent;cursor:pointer;transition:all .15s;margin-top:4px;display:flex;align-items:center;justify-content:center;gap:6px}
+.add-main:hover{background:#fff;color:#555;border-color:#bbb}
+
+/* 모달 */
+.dim{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100;display:none;align-items:center;justify-content:center;padding:20px}
+.dim.on{display:flex}
+.modal{background:#fff;border-radius:12px;width:100%;max-width:720px;max-height:94vh;overflow-y:auto;box-shadow:0 12px 48px rgba(0,0,0,.18)}
+.modal-hd{padding:18px 22px 0;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:1;padding-bottom:12px;border-bottom:1px solid #f0f0ec}
+.modal-hd h2{font-size:14px;font-weight:700}
+.close-btn{background:none;border:none;cursor:pointer;font-size:17px;color:#bbb;padding:2px 5px;border-radius:5px}
+.close-btn:hover{background:#f5f5f2;color:#555}
+.modal-body{padding:16px 22px 4px}
+
+/* 섹션 */
+.section-title{font-size:11px;font-weight:600;color:#aaa;letter-spacing:.5px;text-transform:uppercase;margin-bottom:10px;padding-bottom:5px;border-bottom:1px solid #f0f0ec}
+.sec{margin-bottom:16px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.row1{margin-bottom:10px}
+.fl{display:flex;flex-direction:column;gap:3px}
+.fl label{font-size:10px;color:#aaa;font-weight:600;letter-spacing:.3px;text-transform:uppercase}
+input[type=text],input[type=date],select,textarea{font-size:13px;padding:6px 9px;border:1px solid #e8e8e8;border-radius:7px;background:#fff;color:#1a1a1a;outline:none;width:100%;font-family:inherit;transition:border .15s}
+input:focus,select:focus,textarea:focus{border-color:#888}
+textarea{resize:vertical;min-height:56px;line-height:1.6;font-size:12px}
+.resub-row{display:flex;gap:6px;align-items:center;margin-bottom:5px}
+.resub-row input{flex:1}
+.del-resub{background:none;border:1px solid #f0e8e8;border-radius:5px;cursor:pointer;color:#ddd;font-size:13px;padding:3px 6px;transition:all .15s;white-space:nowrap}
+.del-resub:hover{color:#dc2626;border-color:#fca5a5;background:#fff5f5}
+.add-resub{font-size:11px;color:#aaa;background:none;border:1px dashed #e8e8e8;border-radius:6px;padding:4px 10px;cursor:pointer;margin-top:2px;transition:all .15s}
+.add-resub:hover{background:#fafaf8;color:#888}
+.divider{height:1px;background:#f0f0ec;margin:14px 0}
+.doc-hd{font-size:10px;font-weight:600;color:#aaa;letter-spacing:.3px;text-transform:uppercase;margin-bottom:7px}
+.doc-row{display:grid;grid-template-columns:1fr 80px 80px 1fr 24px;gap:5px;align-items:center;margin-bottom:5px}
+.doc-row-hd{display:grid;grid-template-columns:1fr 80px 80px 1fr 24px;gap:5px;margin-bottom:4px;font-size:10px;color:#bbb;font-weight:600;padding:0 2px}
+.si{font-size:12px;padding:5px 7px;border:1px solid #e8e8e8;border-radius:6px;background:#fff;color:#1a1a1a;outline:none;width:100%;font-family:inherit}
+.si:focus{border-color:#888}
+.del-r{background:none;border:1px solid #f0e8e8;border-radius:5px;cursor:pointer;color:#ddd;font-size:13px;padding:3px 5px;transition:all .15s;line-height:1}
+.del-r:hover{color:#dc2626;border-color:#fca5a5;background:#fff5f5}
+.add-doc{width:100%;margin-top:4px;font-size:11px;color:#bbb;background:none;border:1px dashed #e8e8e8;border-radius:7px;padding:6px;cursor:pointer;transition:all .15s}
+.add-doc:hover{background:#fafaf8;color:#888}
+.modal-ft{padding:12px 22px 18px;border-top:1px solid #f0f0ec;display:flex;gap:8px;justify-content:flex-end;position:sticky;bottom:0;background:#fff}
+.btn{font-size:13px;font-weight:600;padding:7px 16px;border-radius:7px;cursor:pointer;transition:all .15s}
+.btn-c{border:1px solid #e8e8e8;background:#fff;color:#888}
+.btn-c:hover{background:#f5f5f2}
+.btn-s{border:1px solid #1a1a1a;background:#1a1a1a;color:#fff}
+.btn-s:hover{background:#333}
+
+/* 삭제/연구정보 확인 */
+.cdim{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:none;align-items:center;justify-content:center}
+.cdim.on{display:flex}
+.cbox{background:#fff;border-radius:10px;padding:22px 26px;text-align:center;min-width:260px}
+.cbox p{font-size:13px;color:#555;margin-bottom:3px}
+.cbox small{font-size:11px;color:#bbb}
+.cbox-acts{display:flex;gap:8px;justify-content:center;margin-top:16px}
+.btn-del{border:none;background:#dc2626;color:#fff;padding:7px 18px;border-radius:7px;cursor:pointer;font-size:13px;font-weight:600}
+.btn-del:hover{background:#b91c1c}
+
+/* 연구 정보 모달 */
+.study-modal{background:#fff;border-radius:12px;width:100%;max-width:480px;padding:22px;box-shadow:0 12px 48px rgba(0,0,0,.18)}
+.study-modal h2{font-size:14px;font-weight:700;margin-bottom:14px}
+
+@media(max-width:600px){
+  .row3,.row2{grid-template-columns:1fr}
+  .doc-row,.doc-row-hd{grid-template-columns:1fr 65px 65px 1fr 22px}
+  .card-head{flex-wrap:wrap}
+}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div>
+    <div class="title-wrap">
+      <div class="title">📋 IRB 변경 이력 트래커</div>
+      <span class="protocol-tag" onclick="openStudyModal()" id="protocol-tag">연구 정보 입력 ✏️</span>
+    </div>
+    <div class="title-sub" id="study-sub">기관명 · PI · CRA 입력 후 사용하세요</div>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="stat-n" id="sc">0</div><div class="stat-l">총 제출</div></div>
+    <div class="stat"><div class="stat-n" id="dc">0</div><div class="stat-l">총 문서</div></div>
+    <div class="stat"><div class="stat-n" id="fc">0</div><div class="stat-l">필터 결과</div></div>
+  </div>
+</div>
+
+<div class="legend">
+  <span><span class="ldot" style="background:#639922"></span>초기심의 승인</span>
+  <span><span class="ldot" style="background:#4da6ff"></span>초기심의 시정승인</span>
+  <span><span class="ldot" style="background:#378ADD"></span>변경승인</span>
+  <span><span class="ldot" style="background:#BA7517"></span>지속심사</span>
+  <span><span class="ldot" style="background:#E24B4A"></span>안전성보고</span>
+  <span><span class="ldot" style="background:#c026d3"></span>위반보고</span>
+  <span><span class="ldot" style="background:#888780"></span>종료보고</span>
+  <div class="lsep"></div>
+  <span style="color:#16a34a;font-weight:600;font-size:11px">● 승인</span>
+  <span style="color:#ca8a04;font-weight:600;font-size:11px">● 시정승인</span>
+  <span style="color:#2563eb;font-weight:600;font-size:11px">● 보완</span>
+  <span style="color:#dc2626;font-weight:600;font-size:11px">● 반려</span>
+</div>
+
+<div class="filter-bar">
+  <select class="fsel" id="ftype" onchange="applyFilter()">
+    <option value="">📋 전체 유형</option>
+    <option>초기심의 승인</option>
+    <option>초기심의 시정승인</option>
+    <option>변경승인</option>
+    <option>지속심사</option>
+    <option>안전성보고</option>
+    <option>위반보고</option>
+    <option>종료보고</option>
+  </select>
+  <select class="fsel" id="fresult" onchange="applyFilter()">
+    <option value="">✅ 전체 결과</option>
+    <option>승인</option>
+    <option>시정승인</option>
+    <option>보완</option>
+    <option>반려</option>
+    <option>검토완료</option>
+    <option>접수중</option>
+    <option>심의중</option>
+  </select>
+  <input class="fsearch" type="text" id="fsearch" placeholder="🔍 키워드 검색..." oninput="applyFilter()">
+  <span class="fcnt" id="fcnt"></span>
+</div>
+
+<div id="list"></div>
+<button class="add-main" onclick="openModal()">
+  <span style="font-size:15px">＋</span> 새 제출 건 추가
+</button>
+
+<!-- 메인 모달 -->
+<div class="dim" id="dim">
+  <div class="modal">
+    <div class="modal-hd">
+      <h2 id="mtitle">새 제출 건 추가</h2>
+      <button class="close-btn" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- 기본 정보 -->
+      <div class="sec">
+        <div class="section-title">기본 정보</div>
+        <div class="row2">
+          <div class="fl"><label>기관명</label><input type="text" id="f-site" placeholder="예: 강동경희대학교병원"></div>
+          <div class="fl"><label>변경 유형</label>
+            <select id="f-type">
+              <option>초기심의 승인</option>
+              <option>초기심의 시정승인</option>
+              <option>변경승인</option>
+              <option>지속심사</option>
+              <option>안전성보고</option>
+              <option>위반보고</option>
+              <option>종료보고</option>
+            </select>
+          </div>
+        </div>
+        <div class="row2">
+          <div class="fl"><label>승인번호 (IRB No.)</label><input type="text" id="f-no" placeholder="예: IRB 2024-06-001"></div>
+          <div class="fl"><label>심의 결과</label>
+            <select id="f-result">
+              <option value="">선택</option>
+              <option>승인</option>
+              <option>시정승인</option>
+              <option>보완</option>
+              <option>반려</option>
+              <option>검토완료</option>
+              <option>접수중</option>
+              <option>심의중</option>
+            </select>
+          </div>
+        </div>
+        <div class="row1">
+          <div class="fl"><label>유효기간</label><input type="text" id="f-vp" placeholder="예: 2024-09-03 ~ 2026-09-02"></div>
+        </div>
+      </div>
+
+      <!-- 일자 정보 -->
+      <div class="sec">
+        <div class="section-title">일자 기록</div>
+        <div class="row3">
+          <div class="fl"><label>CRA 제출일</label><input type="date" id="f-cra"></div>
+          <div class="fl"><label>PI 제출일</label><input type="date" id="f-pi"></div>
+          <div class="fl"><label>IRB 접수일</label><input type="date" id="f-receipt"></div>
+        </div>
+        <div class="row2">
+          <div class="fl"><label>심의일 (승인일)</label><input type="date" id="f-approval"></div>
+          <div class="fl"><label>통지일</label><input type="date" id="f-notify"></div>
+        </div>
+        <div class="fl" style="margin-bottom:10px">
+          <label>재제출 일자</label>
+          <div id="f-resub-wrap"></div>
+          <button class="add-resub" onclick="addResubRow()">＋ 재제출 일자 추가</button>
+        </div>
+      </div>
+
+      <!-- 코멘트 -->
+      <div class="sec">
+        <div class="section-title">코멘트</div>
+        <textarea id="f-cmt" placeholder="변경 내용, 특이사항, 재제출 사유 등 자유롭게 입력"></textarea>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- 제출 문서 -->
+      <div class="sec">
+        <div class="doc-hd">제출 문서</div>
+        <div class="doc-row-hd"><div>문서명</div><div>Master Ver</div><div>Site Ver</div><div>비고</div><div></div></div>
+        <div id="f-docs"></div>
+        <button class="add-doc" onclick="addDocRow()">＋ 문서 행 추가</button>
+      </div>
+
+    </div>
+    <div class="modal-ft">
+      <button class="btn btn-c" onclick="closeModal()">취소</button>
+      <button class="btn btn-s" onclick="saveSub()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 삭제 확인 -->
+<div class="cdim" id="cdim">
+  <div class="cbox">
+    <p>이 제출 건을 삭제할까요?</p><small>되돌릴 수 없어요</small>
+    <div class="cbox-acts">
+      <button class="btn btn-c" onclick="document.getElementById('cdim').classList.remove('on')">취소</button>
+      <button class="btn-del" onclick="doDelete()">삭제</button>
+    </div>
+  </div>
+</div>
+
+<!-- 연구 정보 모달 -->
+<div class="cdim" id="study-dim">
+  <div class="study-modal">
+    <h2>📌 연구 정보 설정</h2>
+    <div class="row2" style="margin-bottom:10px">
+      <div class="fl"><label>Protocol No.</label><input type="text" id="s-protocol" placeholder="예: PG-102-P2-01"></div>
+      <div class="fl"><label>Sponsor</label><input type="text" id="s-sponsor" placeholder="예: ㈜프로젠"></div>
+    </div>
+    <div class="row2" style="margin-bottom:10px">
+      <div class="fl"><label>담당 CRA</label><input type="text" id="s-cra" placeholder="예: 김민지"></div>
+      <div class="fl"><label>총 기관 수</label><input type="text" id="s-sites" placeholder="예: 14개 기관"></div>
+    </div>
+    <div class="fl" style="margin-bottom:14px"><label>연구 제목</label><input type="text" id="s-title" placeholder="연구 제목 입력"></div>
+    <div class="cbox-acts">
+      <button class="btn btn-c" onclick="document.getElementById('study-dim').classList.remove('on')">취소</button>
+      <button class="btn btn-s" onclick="saveStudy()">저장</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const TC={
+  "초기심의 승인":{bg:"#f0fdf4",color:"#166534",b:"#639922"},
+  "초기심의 시정승인":{bg:"#eff6ff",color:"#1d4ed8",b:"#4da6ff"},
+  "변경승인":{bg:"#e8f2ff",color:"#1e40af",b:"#378ADD"},
+  "지속심사":{bg:"#fffbeb",color:"#92400e",b:"#BA7517"},
+  "안전성보고":{bg:"#fff5f5",color:"#991b1b",b:"#E24B4A"},
+  "위반보고":{bg:"#fdf4ff",color:"#7e22ce",b:"#c026d3"},
+  "종료보고":{bg:"#f9fafb",color:"#374151",b:"#888780"},
+};
+const RC={
+  "승인":{bg:"#dcfce7",color:"#166534"},
+  "시정승인":{bg:"#fef9c3",color:"#92400e"},
+  "보완":{bg:"#dbeafe",color:"#1e40af"},
+  "반려":{bg:"#fee2e2",color:"#991b1b"},
+  "검토완료":{bg:"#f3e8ff",color:"#7e22ce"},
+  "접수중":{bg:"#f0f0ec",color:"#666"},
+  "심의중":{bg:"#fff7ed",color:"#c2410c"},
+};
+
+let DATA=[], STUDY={}, eid=null, did=null, filtered=[];
+
+function sdata(){
+  try{
+    localStorage.setItem("irb_final_data",JSON.stringify(DATA));
+    localStorage.setItem("irb_final_study",JSON.stringify(STUDY));
+  }catch(e){}
+}
+function ldata(){
+  try{
+    const d=localStorage.getItem("irb_final_data");
+    const s=localStorage.getItem("irb_final_study");
+    if(d) DATA=JSON.parse(d);
+    if(s) STUDY=JSON.parse(s);
+  }catch(e){}
+}
+
+function pill(v,m){
+  if(!v||v==="-"||!v.trim()) return '<span style="color:#ddd;font-size:11px">-</span>';
+  return m?`<span class="pill" style="background:#dbeafe;color:#1d4ed8">${v}</span>`
+          :`<span class="pill" style="background:#dcfce7;color:#166534">${v}</span>`;
+}
+
+function resultBadge(r){
+  if(!r) return "";
+  const c=RC[r]||{bg:"#f0f0ec",color:"#666"};
+  return `<span class="result-badge" style="background:${c.bg};color:${c.color}">${r}</span>`;
+}
+
+function applyFilter(){
+  const type=document.getElementById("ftype").value;
+  const res=document.getElementById("fresult").value;
+  const kw=document.getElementById("fsearch").value.toLowerCase();
+  filtered=DATA.filter(s=>{
+    if(type && s.type!==type) return false;
+    if(res && s.result!==res) return false;
+    if(kw && !JSON.stringify(s).toLowerCase().includes(kw)) return false;
+    return true;
+  });
+  document.getElementById("fcnt").textContent=`${filtered.length}건 표시 중`;
+  document.getElementById("fc").textContent=filtered.length;
+  renderList();
+}
+
+function updateStudyUI(){
+  const tag=document.getElementById("protocol-tag");
+  const sub=document.getElementById("study-sub");
+  if(STUDY.protocol){
+    tag.textContent=STUDY.protocol+" ✏️";
+    const parts=[STUDY.sponsor,STUDY.sites,STUDY.cra].filter(Boolean).join(" · ");
+    sub.textContent=parts||STUDY.title||"연구 정보 등록됨";
+  }
+}
+
+function render(){
+  sdata();
+  document.getElementById("sc").textContent=DATA.length;
+  document.getElementById("dc").textContent=DATA.reduce((a,s)=>a+(s.docs||[]).length,0);
+  updateStudyUI();
+  applyFilter();
+}
+
+function renderList(){
+  const el=document.getElementById("list");
+  if(!filtered.length){
+    el.innerHTML='<div class="empty">📄 등록된 제출 건이 없어요<br><span style="font-size:12px;margin-top:6px;display:block">아래 버튼으로 첫 번째 제출 건을 추가해보세요</span></div>';
+    return;
+  }
+  el.innerHTML=filtered.map((s,i)=>{
+    const c=TC[s.type]||TC["종료보고"];
+    const open=s._open===true;
+    const docs=s.docs||[];
+    const rows=docs.map(d=>`<tr>
+      <td style="font-weight:500;color:#333">${d.n||"-"}</td>
+      <td>${pill(d.m,true)}</td><td>${pill(d.sv,false)}</td>
+      <td style="color:#999;font-size:11px">${d.r||"-"}</td>
+    </tr>`).join("");
+
+    const resubHtml=s.resub&&s.resub.length
+      ?s.resub.filter(Boolean).map(d=>`<span class="resub-tag">🔄 재제출 ${d}</span>`).join(" "):"";
+
+    return `<div class="card" style="border-left-color:${c.b}">
+      <div class="card-head${open?" open":""}" onclick="tog('${s.id}',event)">
+        <span class="num">${String(i+1).padStart(2,"0")}</span>
+        <span class="badge" style="background:${c.bg};color:${c.color};border-color:${c.b}">${s.type}</span>
+        ${s.result?resultBadge(s.result):""}
+        ${s.site?`<span class="site-tag">${s.site}</span>`:""}
+        <div class="meta">
+          ${s.cra_date?`<span class="mi">📤 ${s.cra_date}</span>`:""}
+          ${s.approval?`<span class="mi">✅ ${s.approval}</span>`:""}
+          ${s.no?`<span class="mno">${s.no}</span>`:""}
+        </div>
+        <span class="dcnt">문서 ${docs.length}건</span>
+        <div class="acts" onclick="event.stopPropagation()">
+          <button class="abtn" onclick="openModal('${s.id}')">✏️ 수정</button>
+          <button class="abtn red" onclick="askDel('${s.id}')">🗑 삭제</button>
+        </div>
+        <span class="chev${open?" open":""}">▾</span>
+      </div>
+      <div class="card-body${open?" open":""}" id="b${s.id}">
+        <div class="detail-grid">
+          <div class="detail-item"><div class="detail-label">CRA 제출일</div><div class="detail-value">${s.cra_date||"-"}</div></div>
+          <div class="detail-item"><div class="detail-label">PI 제출일</div><div class="detail-value">${s.pi_date||"-"}</div></div>
+          <div class="detail-item"><div class="detail-label">IRB 접수일</div><div class="detail-value">${s.receipt||"-"}</div></div>
+          <div class="detail-item"><div class="detail-label">심의일</div><div class="detail-value">${s.approval||"-"}</div></div>
+          <div class="detail-item"><div class="detail-label">통지일</div><div class="detail-value">${s.notify||"-"}</div></div>
+          <div class="detail-item"><div class="detail-label">유효기간</div><div class="detail-value">${s.vp||"-"}</div></div>
+        </div>
+        ${resubHtml?`<div style="margin:4px 0">${resubHtml}</div>`:""}
+        ${s.cmt?`<div class="comment-box"><div class="cml">💬 코멘트</div>${s.cmt.replace(/\n/g,"<br>")}</div>`:""}
+        <div class="ver-hint">
+          <span><span class="vdot" style="background:#dbeafe;border-color:#93c5fd"></span>Master Ver</span>
+          <span><span class="vdot" style="background:#dcfce7;border-color:#86efac"></span>Site Ver</span>
+        </div>
+        ${docs.length
+          ?`<table><thead><tr><th>문서명</th><th>Master Ver</th><th>Site Ver</th><th>비고</th></tr></thead><tbody>${rows}</tbody></table>`
+          :`<div class="no-doc">등록된 문서가 없어요</div>`}
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function tog(id){
+  const s=DATA.find(x=>x.id===id); if(!s) return;
+  s._open=!s._open;
+  const body=document.getElementById("b"+id);
+  const head=body.previousElementSibling;
+  body.classList.toggle("open",s._open);
+  head.classList.toggle("open",s._open);
+  head.querySelector(".chev").classList.toggle("open",s._open);
+}
+
+function openModal(id){
+  eid=id||null;
+  document.getElementById("mtitle").textContent=id?"제출 건 수정":"새 제출 건 추가";
+  document.getElementById("f-docs").innerHTML="";
+  document.getElementById("f-resub-wrap").innerHTML="";
+
+  if(id){
+    const s=DATA.find(x=>x.id===id);
+    document.getElementById("f-site").value=s.site||"";
+    document.getElementById("f-type").value=s.type||"변경승인";
+    document.getElementById("f-no").value=s.no||"";
+    document.getElementById("f-result").value=s.result||"";
+    document.getElementById("f-vp").value=s.vp||"";
+    document.getElementById("f-cra").value=s.cra_date||"";
+    document.getElementById("f-pi").value=s.pi_date||"";
+    document.getElementById("f-receipt").value=s.receipt||"";
+    document.getElementById("f-approval").value=s.approval||"";
+    document.getElementById("f-notify").value=s.notify||"";
+    document.getElementById("f-cmt").value=s.cmt||"";
+    (s.resub||[]).forEach(r=>addResubRow(r));
+    (s.docs||[]).forEach(d=>addDocRow(d));
+  } else {
+    ["f-site","f-no","f-vp","f-cmt"].forEach(f=>document.getElementById(f).value="");
+    ["f-cra","f-pi","f-receipt","f-approval","f-notify"].forEach(f=>document.getElementById(f).value="");
+    document.getElementById("f-type").value="변경승인";
+    document.getElementById("f-result").value="";
+    addDocRow();
+  }
+  document.getElementById("dim").classList.add("on");
+}
+function closeModal(){document.getElementById("dim").classList.remove("on");eid=null;}
+
+function addResubRow(val){
+  const wrap=document.getElementById("f-resub-wrap");
+  const div=document.createElement("div");
+  div.className="resub-row";
+  div.innerHTML=`<input type="date" class="resub-date" value="${val||""}">
+    <button class="del-resub" onclick="this.parentNode.remove()">✕</button>`;
+  wrap.appendChild(div);
+}
+
+function addDocRow(d){
+  d=d||{n:"",m:"",sv:"",r:""};
+  const el=document.getElementById("f-docs");
+  const div=document.createElement("div");
+  div.className="doc-row";
+  div.innerHTML=`
+    <input class="si dn" type="text" value="${d.n||""}" placeholder="예: 연구계획서">
+    <input class="si dm" type="text" value="${d.m||""}" placeholder="Master">
+    <input class="si ds" type="text" value="${d.sv||""}" placeholder="Site">
+    <input class="si dr" type="text" value="${d.r||""}" placeholder="비고">
+    <button class="del-r" onclick="this.parentNode.remove()">✕</button>`;
+  el.appendChild(div);
+}
+
+function saveSub(){
+  const no=document.getElementById("f-no").value.trim();
+  const cra=document.getElementById("f-cra").value;
+  if(!no&&!cra){alert("CRA 제출일 또는 승인번호 중 하나는 입력해주세요.");return;}
+  const resub=[...document.querySelectorAll(".resub-date")].map(i=>i.value).filter(Boolean);
+  const docs=[...document.getElementById("f-docs").querySelectorAll(".doc-row")].map(r=>({
+    n:r.querySelector(".dn").value.trim(),
+    m:r.querySelector(".dm").value.trim()||"-",
+    sv:r.querySelector(".ds").value.trim()||"-",
+    r:r.querySelector(".dr").value.trim(),
+  })).filter(d=>d.n);
+  const entry={
+    site:document.getElementById("f-site").value.trim(),
+    type:document.getElementById("f-type").value,
+    no,result:document.getElementById("f-result").value,
+    vp:document.getElementById("f-vp").value.trim(),
+    cra_date:cra, pi_date:document.getElementById("f-pi").value,
+    receipt:document.getElementById("f-receipt").value,
+    approval:document.getElementById("f-approval").value,
+    notify:document.getElementById("f-notify").value,
+    resub, cmt:document.getElementById("f-cmt").value.trim(),
+    docs, _open:true,
+  };
+  if(eid){const i=DATA.findIndex(x=>x.id===eid);DATA[i]={...DATA[i],...entry};}
+  else DATA.push({id:"i"+Date.now(),...entry});
+  closeModal();render();
+}
+
+function askDel(id){did=id;document.getElementById("cdim").classList.add("on")}
+function doDelete(){DATA=DATA.filter(x=>x.id!==did);document.getElementById("cdim").classList.remove("on");did=null;render();}
+
+function openStudyModal(){
+  document.getElementById("s-protocol").value=STUDY.protocol||"";
+  document.getElementById("s-sponsor").value=STUDY.sponsor||"";
+  document.getElementById("s-cra").value=STUDY.cra||"";
+  document.getElementById("s-sites").value=STUDY.sites||"";
+  document.getElementById("s-title").value=STUDY.title||"";
+  document.getElementById("study-dim").classList.add("on");
+}
+function saveStudy(){
+  STUDY={
+    protocol:document.getElementById("s-protocol").value.trim(),
+    sponsor:document.getElementById("s-sponsor").value.trim(),
+    cra:document.getElementById("s-cra").value.trim(),
+    sites:document.getElementById("s-sites").value.trim(),
+    title:document.getElementById("s-title").value.trim(),
+  };
+  document.getElementById("study-dim").classList.remove("on");
+  render();
+}
+
+document.getElementById("dim").addEventListener("click",function(e){if(e.target===this)closeModal()});
+document.getElementById("cdim").addEventListener("click",function(e){if(e.target===this)this.classList.remove("on")});
+document.getElementById("study-dim").addEventListener("click",function(e){if(e.target===this)this.classList.remove("on")});
+
+ldata();render();
+</script>
+</body>
+</html>
